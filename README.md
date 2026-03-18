@@ -1,2 +1,2 @@
 # diffusion_downscaling_model
-Downscaling Model for ESM
+Downscaling Model for Earth Systems Models.
