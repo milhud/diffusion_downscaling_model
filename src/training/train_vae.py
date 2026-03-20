@@ -16,8 +16,9 @@ def train_vae(
     val_loader: DataLoader,
     epochs: int = 50,
     lr: float = 1e-4,
-    beta_max: float = 1e-4,
-    beta_anneal_epochs: int = 15,
+    beta_max: float = 1e-3,
+    beta_anneal_frac: float = 0.3,
+    warmup_epochs: int = 3,
     device: str = "cuda",
     checkpoint_dir: str = "checkpoints",
     log_interval: int = 50,
@@ -25,6 +26,7 @@ def train_vae(
     """Train VAE on residuals (CONUS404 - DRN prediction).
 
     DRN runs in eval mode to generate residuals on the fly.
+    Beta annealing ramps from 0 to beta_max over beta_anneal_frac of total steps.
     """
     vae = vae.to(device)
     drn = drn.to(device).eval()
@@ -33,16 +35,21 @@ def train_vae(
 
     criterion = VAELoss()
     optimizer = torch.optim.AdamW(vae.parameters(), lr=lr, weight_decay=1e-5)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    warmup_sched = torch.optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=1e-3, total_iters=warmup_epochs)
+    cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=max(1, epochs - warmup_epochs))
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer, schedulers=[warmup_sched, cosine_sched], milestones=[warmup_epochs])
+    total_steps = epochs * max(len(train_loader), 1)
+    beta_ramp_steps = int(beta_anneal_frac * total_steps)
 
     ckpt_dir = Path(checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     best_val_loss = float("inf")
 
+    global_step = 0
     for epoch in range(epochs):
-        # Beta annealing: 0 → beta_max over beta_anneal_epochs
-        beta = min(beta_max * (epoch / max(beta_anneal_epochs, 1)), beta_max)
-
         vae.train()
         epoch_loss = 0.0
         epoch_recon = 0.0
@@ -51,6 +58,9 @@ def train_vae(
         for step, (era5, conus) in enumerate(train_loader):
             era5 = era5.to(device)
             conus = conus.to(device)
+
+            # Per-step beta annealing: 0 → beta_max over beta_ramp_steps
+            beta = beta_max * min(1.0, global_step / max(1, beta_ramp_steps))
 
             # Compute residual: CONUS404 - DRN(ERA5)
             with torch.no_grad():
@@ -66,6 +76,7 @@ def train_vae(
             torch.nn.utils.clip_grad_norm_(vae.parameters(), 1.0)
             optimizer.step()
 
+            global_step += 1
             epoch_loss += loss.item()
             epoch_recon += recon_l.item()
             epoch_kl += kl_l.item()

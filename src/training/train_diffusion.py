@@ -61,7 +61,8 @@ def train_diffusion(
     train_loader: DataLoader,
     val_loader: DataLoader,
     epochs: int = 100,
-    lr: float = 1e-4,
+    lr: float = 2e-4,
+    warmup_epochs: int = 5,
     ema_decay: float = 0.9999,
     p_uncond: float = 0.1,
     device: str = "cuda",
@@ -80,7 +81,12 @@ def train_diffusion(
     schedule = EDMSchedule()
     ema = EMA(diff_model, decay=ema_decay)
     optimizer = torch.optim.AdamW(diff_model.parameters(), lr=lr, weight_decay=1e-5)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    warmup_sched = torch.optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=1e-3, total_iters=warmup_epochs)
+    cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=max(1, epochs - warmup_epochs))
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer, schedulers=[warmup_sched, cosine_sched], milestones=[warmup_epochs])
 
     ckpt_dir = Path(checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)

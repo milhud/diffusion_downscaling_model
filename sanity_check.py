@@ -1,7 +1,7 @@
 """End-to-end sanity check using REAL ERA5/CONUS404 data (temperature only).
 
 Loads a few days from disk, regrids ERA5→CONUS404 in-memory, extracts random
-256×256 patches, and trains 1 epoch of each stage (DRN → VAE → Diffusion).
+256×256 patches, and trains each stage (DRN → VAE → Diffusion).
 Generates diagnostic plots at every stage including power spectra, ensemble
 spread, error histograms, and multi-patch comparisons.
 
@@ -9,10 +9,11 @@ No data is written to disk except plots and the final summary.
 
 Usage:
   python sanity_check.py [--device cuda|cpu] [--plot_dir sanity_plots]
-  python sanity_check.py --extensive    # 500 steps/stage, bigger models, stricter checks
+  python sanity_check.py --extensive    # ~3h on A100: many more steps, bigger models
 """
 
 import argparse
+import subprocess
 import sys
 import time
 import torch
@@ -44,26 +45,43 @@ def get_config(extensive: bool):
     """Return config dict based on mode."""
     if extensive:
         return dict(
-            num_train_steps=500,
-            batch_size=4,
-            years=[1980, 1981],
-            sample_days=[10, 30, 50, 70, 90, 110, 130, 150, 170, 190,
-                         210, 230, 250, 270, 290, 310, 330, 350],
+            # ── Training steps (separate per stage) ──
+            num_drn_steps=3000,
+            num_vae_steps=3000,
+            num_diff_steps=10000,
+            batch_size=8,
+            # ── Data ──
+            years=[1980, 1981, 1982, 1983],
+            sample_days=list(range(5, 360, 15)),  # every 15 days (~24/year)
             patches_per_day=8,
+            # ── Model sizes ──
             drn_base_ch=64,
             drn_num_res=2,
             vae_base_ch=128,
-            diff_base_ch=96,
-            diff_num_res=3,
-            num_sampling_steps=24,
+            diff_base_ch=128,
+            diff_num_res=4,
+            # ── Learning rates ──
+            lr_drn=2e-4,
+            lr_vae=1e-4,
+            lr_diff=2e-4,
+            warmup_frac=0.05,       # 5% warmup then cosine decay
+            # ── VAE beta schedule ──
+            vae_beta_max=1e-3,
+            vae_beta_ramp_frac=0.3, # ramp over 30% of VAE steps
+            # ── Inference ──
+            num_sampling_steps=32,
             num_ensemble=8,
-            num_eval_patches=48,
-            lr=1e-4,
-            log_every=25,
+            num_eval_patches=16,
+            # ── Logging ──
+            log_every=200,
+            # ── Diffusion snapshots (show visual progress) ──
+            diff_snapshot_steps=[500, 1000, 2000, 5000, 10000],
         )
     else:
         return dict(
-            num_train_steps=50,
+            num_drn_steps=100,
+            num_vae_steps=100,
+            num_diff_steps=200,
             batch_size=4,
             years=[1980],
             sample_days=[10, 40, 70, 100, 130, 160, 190, 220, 250, 280, 310, 340],
@@ -73,12 +91,33 @@ def get_config(extensive: bool):
             vae_base_ch=64,
             diff_base_ch=64,
             diff_num_res=2,
+            lr_drn=1e-4,
+            lr_vae=1e-4,
+            lr_diff=1e-4,
+            warmup_frac=0.1,
+            vae_beta_max=1e-4,
+            vae_beta_ramp_frac=0.5,
             num_sampling_steps=12,
             num_ensemble=4,
-            num_eval_patches=24,
-            lr=3e-4,
+            num_eval_patches=8,
             log_every=10,
+            diff_snapshot_steps=[],
         )
+
+
+# ─── LR schedule ────────────────────────────────────────────────────────────
+
+def cosine_lr(step, total_steps, base_lr, warmup_steps):
+    """Linear warmup then cosine decay to 0."""
+    if step < warmup_steps:
+        return base_lr * (step + 1) / max(1, warmup_steps)
+    progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+    return base_lr * 0.5 * (1.0 + np.cos(np.pi * progress))
+
+
+def set_lr(optimizer, lr):
+    for pg in optimizer.param_groups:
+        pg["lr"] = lr
 
 
 # ─── Data loading (all in-memory) ────────────────────────────────────────────
@@ -240,9 +279,24 @@ def plot_stage_panels(panels, titles, save_path, suptitle="", cmap="RdBu_r"):
     print(f"  Plot -> {save_path}")
 
 
-def plot_loss(losses, title, save_path):
-    fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(losses, linewidth=2)
+def plot_loss(losses, title, save_path, smooth_window=None):
+    """Plot loss with raw (faded) + smoothed (bold) lines."""
+    fig, ax = plt.subplots(figsize=(8, 4))
+    n = len(losses)
+    if smooth_window is None:
+        smooth_window = max(5, n // 20)
+    # Raw
+    ax.plot(losses, linewidth=0.5, alpha=0.25, color="steelblue")
+    # Smoothed
+    if n > smooth_window:
+        kernel = np.ones(smooth_window) / smooth_window
+        smoothed = np.convolve(losses, kernel, mode="valid")
+        offset = smooth_window // 2
+        ax.plot(range(offset, offset + len(smoothed)), smoothed,
+                linewidth=2.5, color="steelblue", label=f"Smoothed (w={smooth_window})")
+        ax.legend(fontsize=9)
+    else:
+        ax.plot(losses, linewidth=2, color="steelblue")
     ax.set_xlabel("Step"); ax.set_ylabel("Loss"); ax.set_title(title)
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -277,12 +331,10 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
 
     cfg = get_config(extensive)
     mode_str = "EXTENSIVE" if extensive else "QUICK"
-    NUM_TRAIN_STEPS = cfg["num_train_steps"]
     BATCH_SIZE = cfg["batch_size"]
     NUM_SAMPLING_STEPS = cfg["num_sampling_steps"]
     NUM_ENSEMBLE = cfg["num_ensemble"]
     LOG_EVERY = cfg["log_every"]
-    LR = cfg["lr"]
 
     IN_CH = 6
     OUT_CH = 1
@@ -290,7 +342,9 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
 
     print("=" * 70)
     print(f"SANITY CHECK [{mode_str}] — Real data, temperature only")
-    print(f"  Steps/stage: {NUM_TRAIN_STEPS}, Ensemble: {NUM_ENSEMBLE}, "
+    print(f"  DRN steps: {cfg['num_drn_steps']}, VAE steps: {cfg['num_vae_steps']}, "
+          f"Diff steps: {cfg['num_diff_steps']}")
+    print(f"  Batch: {BATCH_SIZE}, Ensemble: {NUM_ENSEMBLE}, "
           f"Sampling: {NUM_SAMPLING_STEPS} Heun steps")
     print("=" * 70)
 
@@ -298,6 +352,15 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     # LOAD REAL DATA
     # ═══════════════════════════════════════════════════════════════════════
     patches, era5_full, conus_full, day_labels, patch_day_idx = load_real_data(cfg)
+
+    # Random batch sampler (instead of sequential cycling)
+    batch_rng = np.random.RandomState(123)
+
+    def get_batch():
+        idxs = batch_rng.randint(0, len(patches), size=BATCH_SIZE)
+        era5_b = torch.stack([patches[i][0] for i in idxs]).to(device)
+        conus_b = torch.stack([patches[i][1] for i in idxs]).to(device)
+        return era5_b, conus_b
 
     plot_stage_panels(
         [era5_full, conus_full],
@@ -314,12 +377,6 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         suptitle="Example 256x256 Patch",
     )
 
-    def get_batch(step):
-        idxs = [(step * BATCH_SIZE + i) % len(patches) for i in range(BATCH_SIZE)]
-        era5_b = torch.stack([patches[i][0] for i in idxs]).to(device)
-        conus_b = torch.stack([patches[i][1] for i in idxs]).to(device)
-        return era5_b, conus_b
-
     # ═══════════════════════════════════════════════════════════════════════
     # STAGE 1: DRN
     # ═══════════════════════════════════════════════════════════════════════
@@ -327,6 +384,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     print("STAGE 1: Deterministic Regression Network (DRN)")
     print("=" * 70)
 
+    NUM_DRN_STEPS = cfg["num_drn_steps"]
     drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=cfg["drn_base_ch"],
               ch_mults=(1, 2, 4, 8), num_res_blocks=cfg["drn_num_res"],
               attn_resolutions=(2,)).to(device)
@@ -334,33 +392,37 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
 
     drn_criterion = PerVariableMSE(num_vars=OUT_CH, precip_channel=-1).to(device)
     drn_opt = torch.optim.AdamW(
-        list(drn.parameters()) + list(drn_criterion.parameters()), lr=LR)
+        list(drn.parameters()) + list(drn_criterion.parameters()), lr=cfg["lr_drn"])
+    warmup_drn = int(cfg["warmup_frac"] * NUM_DRN_STEPS)
 
     drn.train()
     drn_losses = []
-    for step in range(NUM_TRAIN_STEPS):
-        era5_b, conus_b = get_batch(step)
+    t_stage = time.time()
+    for step in range(NUM_DRN_STEPS):
+        lr = cosine_lr(step, NUM_DRN_STEPS, cfg["lr_drn"], warmup_drn)
+        set_lr(drn_opt, lr)
+        era5_b, conus_b = get_batch()
         pred = drn(era5_b)
         loss = drn_criterion(pred, conus_b)
         drn_opt.zero_grad(); loss.backward(); drn_opt.step()
         drn_losses.append(loss.item())
-        if step % LOG_EVERY == 0:
-            print(f"  Step {step:3d}/{NUM_TRAIN_STEPS} | Loss: {loss.item():.6f}")
+        if step % LOG_EVERY == 0 or step == NUM_DRN_STEPS - 1:
+            print(f"  Step {step:5d}/{NUM_DRN_STEPS} | Loss: {loss.item():.6f} | LR: {lr:.2e}")
 
     assert all(np.isfinite(l) for l in drn_losses), "DRN has non-finite losses!"
     if extensive:
         assert drn_losses[-1] < drn_losses[0], \
             f"DRN loss did not decrease: {drn_losses[0]:.4f} -> {drn_losses[-1]:.4f}"
-        # Check last 20% of steps are lower than first 20%
-        early = np.mean(drn_losses[:NUM_TRAIN_STEPS // 5])
-        late = np.mean(drn_losses[-NUM_TRAIN_STEPS // 5:])
+        early = np.mean(drn_losses[:NUM_DRN_STEPS // 5])
+        late = np.mean(drn_losses[-NUM_DRN_STEPS // 5:])
         assert late < early, f"DRN not converging: early avg {early:.4f} vs late avg {late:.4f}"
-    print(f"[DRN] PASS — loss {drn_losses[0]:.4f} -> {drn_losses[-1]:.4f}")
+    print(f"[DRN] PASS — loss {drn_losses[0]:.4f} -> {drn_losses[-1]:.4f} "
+          f"({time.time()-t_stage:.0f}s)")
     plot_loss(drn_losses, f"DRN Training Loss [{mode_str}]", f"{plot_dir}/02_drn_loss.png")
 
     # DRN eval on first batch
     drn.eval()
-    era5_viz, conus_viz = get_batch(0)
+    era5_viz, conus_viz = get_batch()
     with torch.no_grad():
         drn_pred = drn(era5_viz)
         residual = conus_viz - drn_pred
@@ -372,7 +434,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         suptitle="Stage 1: DRN Downscaling",
     )
 
-    # ── DRN: multi-patch comparison across different days ──
+    # DRN multi-patch comparison
     print("[DRN] Evaluating across multiple patches from different days...")
     drn_rmses = []
     fig_mp, axes_mp = plt.subplots(3, 4, figsize=(18, 13))
@@ -403,46 +465,62 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     print("STAGE 2a: Variational Autoencoder (VAE)")
     print("=" * 70)
 
+    NUM_VAE_STEPS = cfg["num_vae_steps"]
     vae = VAE(in_ch=OUT_CH, latent_ch=LATENT_CH, base_ch=cfg["vae_base_ch"]).to(device)
     print(f"[VAE] Params: {sum(p.numel() for p in vae.parameters()):,}")
 
     vae_criterion = VAELoss()
-    vae_opt = torch.optim.AdamW(vae.parameters(), lr=LR)
+    vae_opt = torch.optim.AdamW(vae.parameters(), lr=cfg["lr_vae"])
+    warmup_vae = int(cfg["warmup_frac"] * NUM_VAE_STEPS)
+    beta_max = cfg["vae_beta_max"]
+    beta_ramp_steps = int(cfg["vae_beta_ramp_frac"] * NUM_VAE_STEPS)
 
     vae.train()
     vae_losses, vae_recon_losses, vae_kl_losses = [], [], []
-    for step in range(NUM_TRAIN_STEPS):
-        era5_b, conus_b = get_batch(step)
+    t_stage = time.time()
+    for step in range(NUM_VAE_STEPS):
+        lr = cosine_lr(step, NUM_VAE_STEPS, cfg["lr_vae"], warmup_vae)
+        set_lr(vae_opt, lr)
+        era5_b, conus_b = get_batch()
         with torch.no_grad():
             drn_pred_b = drn(era5_b)
         residual_b = conus_b - drn_pred_b
         recon, mu, logvar = vae(residual_b)
-        beta = min(1e-4 * step / 15, 1e-4)
+        beta = beta_max * min(1.0, step / max(1, beta_ramp_steps))
         loss, recon_l, kl_l = vae_criterion(recon, residual_b, mu, logvar, beta=beta)
         vae_opt.zero_grad(); loss.backward(); vae_opt.step()
         vae_losses.append(loss.item())
         vae_recon_losses.append(recon_l.item())
         vae_kl_losses.append(kl_l.item())
-        if step % LOG_EVERY == 0:
-            print(f"  Step {step:3d}/{NUM_TRAIN_STEPS} | Loss: {loss.item():.6f} "
-                  f"(recon: {recon_l.item():.6f}, KL: {kl_l.item():.2f}, beta: {beta:.1e})")
+        if step % LOG_EVERY == 0 or step == NUM_VAE_STEPS - 1:
+            print(f"  Step {step:5d}/{NUM_VAE_STEPS} | Loss: {loss.item():.6f} "
+                  f"(recon: {recon_l.item():.6f}, KL: {kl_l.item():.2f}, "
+                  f"beta: {beta:.1e}, LR: {lr:.2e})")
 
     assert all(np.isfinite(l) for l in vae_losses), "VAE has non-finite losses!"
     assert mu.shape == (BATCH_SIZE, LATENT_CH, LATENT_H, LATENT_W), f"Latent shape wrong: {mu.shape}"
     if extensive:
         assert vae_recon_losses[-1] < vae_recon_losses[0], \
             f"VAE recon loss did not decrease: {vae_recon_losses[0]:.4f} -> {vae_recon_losses[-1]:.4f}"
-        # KL should be bounded and positive (not collapsed)
         assert vae_kl_losses[-1] > 0.1, f"VAE KL collapsed to {vae_kl_losses[-1]:.4f}"
         assert vae_kl_losses[-1] < 100, f"VAE KL exploded to {vae_kl_losses[-1]:.4f}"
-    print(f"[VAE] PASS — loss {vae_losses[0]:.4f} -> {vae_losses[-1]:.4f}, latent: {mu.shape}")
+    print(f"[VAE] PASS — loss {vae_losses[0]:.4f} -> {vae_losses[-1]:.4f}, "
+          f"latent: {mu.shape} ({time.time()-t_stage:.0f}s)")
 
-    # ── VAE loss curves: combined + separate recon/KL ──
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 4))
-    ax1.plot(vae_losses, linewidth=2); ax1.set_title("VAE Total Loss"); ax1.grid(True, alpha=0.3)
-    ax2.plot(vae_recon_losses, linewidth=2, color="steelblue"); ax2.set_title("Reconstruction Loss"); ax2.grid(True, alpha=0.3)
-    ax3.plot(vae_kl_losses, linewidth=2, color="coral"); ax3.set_title("KL Divergence"); ax3.grid(True, alpha=0.3)
-    for ax in [ax1, ax2, ax3]: ax.set_xlabel("Step")
+    # VAE loss curves
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
+    sw = max(5, NUM_VAE_STEPS // 20)
+    for ax, data, color, title in [
+        (ax1, vae_losses, "steelblue", "VAE Total Loss"),
+        (ax2, vae_recon_losses, "steelblue", "Reconstruction Loss"),
+        (ax3, vae_kl_losses, "coral", "KL Divergence"),
+    ]:
+        ax.plot(data, linewidth=0.5, alpha=0.25, color=color)
+        if len(data) > sw:
+            kernel = np.ones(sw) / sw
+            smoothed = np.convolve(data, kernel, mode="valid")
+            ax.plot(range(sw//2, sw//2+len(smoothed)), smoothed, linewidth=2.5, color=color)
+        ax.set_title(title); ax.set_xlabel("Step"); ax.grid(True, alpha=0.3)
     plt.tight_layout()
     fig.savefig(f"{plot_dir}/04_vae_loss.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -466,7 +544,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         suptitle="Stage 2a: VAE Encoding/Decoding of Residual",
     )
 
-    # ── Latent distribution with Gaussian overlay ──
+    # Latent distribution
     mu_np = mu_viz.cpu().numpy().flatten()
     std_np = torch.exp(0.5 * logvar_viz).cpu().numpy().flatten()
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
@@ -489,6 +567,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     print("STAGE 2b: Conditional EDM Diffusion UNet")
     print("=" * 70)
 
+    NUM_DIFF_STEPS = cfg["num_diff_steps"]
     DIFF_IN_CH = LATENT_CH + 1 + LATENT_CH + 2  # 11
 
     diff_model = DiffusionUNet(
@@ -499,7 +578,8 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     print(f"[Diff] Params: {sum(p.numel() for p in diff_model.parameters()):,}")
 
     ema = EMA(diff_model, decay=0.9999)
-    diff_opt = torch.optim.AdamW(diff_model.parameters(), lr=LR)
+    diff_opt = torch.optim.AdamW(diff_model.parameters(), lr=cfg["lr_diff"])
+    warmup_diff = int(cfg["warmup_frac"] * NUM_DIFF_STEPS)
 
     ys = torch.linspace(-1, 1, LATENT_H, device=device)
     xs = torch.linspace(-1, 1, LATENT_W, device=device)
@@ -514,10 +594,17 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         pos = pos_emb.unsqueeze(0).expand(era5_b.shape[0], -1, -1, -1)
         return torch.cat([era5_down, mu_drn, pos], dim=1)
 
+    # Prepare a fixed eval batch for snapshots
+    with torch.no_grad():
+        cond_inf = build_cond(era5_viz, drn_pred)
+
     diff_model.train()
     diff_losses = []
-    for step in range(NUM_TRAIN_STEPS):
-        era5_b, conus_b = get_batch(step)
+    t_stage = time.time()
+    for step in range(NUM_DIFF_STEPS):
+        lr = cosine_lr(step, NUM_DIFF_STEPS, cfg["lr_diff"], warmup_diff)
+        set_lr(diff_opt, lr)
+        era5_b, conus_b = get_batch()
         with torch.no_grad():
             drn_pred_b = drn(era5_b)
             residual_b = conus_b - drn_pred_b
@@ -525,6 +612,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
             z_clean_b = vae.reparameterize(mu_b, logvar_b)
 
         cond = build_cond(era5_b, drn_pred_b)
+        # Classifier-free guidance: drop conditioning 10% of the time
         if torch.rand(1).item() < 0.1:
             cond = torch.zeros_like(cond)
 
@@ -533,16 +621,44 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         torch.nn.utils.clip_grad_norm_(diff_model.parameters(), 1.0)
         diff_opt.step(); ema.update()
         diff_losses.append(loss.item())
-        if step % LOG_EVERY == 0:
-            print(f"  Step {step:3d}/{NUM_TRAIN_STEPS} | Loss: {loss.item():.6f}")
+        if step % LOG_EVERY == 0 or step == NUM_DIFF_STEPS - 1:
+            elapsed = time.time() - t_stage
+            eta = elapsed / (step + 1) * (NUM_DIFF_STEPS - step - 1)
+            print(f"  Step {step:5d}/{NUM_DIFF_STEPS} | Loss: {loss.item():.6f} | "
+                  f"LR: {lr:.2e} | ETA: {eta/60:.1f}min")
+
+        # ── Intermediate snapshots (extensive only) ──
+        if (step + 1) in cfg.get("diff_snapshot_steps", []):
+            print(f"  >>> Snapshot at step {step+1}")
+            diff_model.eval()
+            with torch.no_grad(), ema.apply():
+                z_snap = heun_sampler(
+                    diff_model, schedule, cond_inf[:1],
+                    shape=(1, LATENT_CH, LATENT_H, LATENT_W),
+                    num_steps=min(NUM_SAMPLING_STEPS, 16),
+                    guidance_scale=0.2,
+                )
+                r_snap = vae.decode(z_snap)
+                final_snap = drn_pred[:1] + r_snap
+            plot_stage_panels(
+                [conus_viz[0, 0], drn_pred[0, 0], final_snap[0, 0],
+                 (conus_viz[0, 0] - final_snap[0, 0])],
+                ["Target", "DRN only", f"DRN+Diff (step {step+1})",
+                 f"Error (step {step+1})"],
+                f"{plot_dir}/07s_diff_snapshot_{step+1:05d}.png",
+                suptitle=f"Diffusion Progress — Step {step+1}",
+            )
+            diff_model.train()
 
     assert all(np.isfinite(l) for l in diff_losses), "Diffusion has non-finite losses!"
     if extensive:
-        early = np.mean(diff_losses[:NUM_TRAIN_STEPS // 5])
-        late = np.mean(diff_losses[-NUM_TRAIN_STEPS // 5:])
+        early = np.mean(diff_losses[:NUM_DIFF_STEPS // 5])
+        late = np.mean(diff_losses[-NUM_DIFF_STEPS // 5:])
         assert late < early, f"Diffusion not converging: early avg {early:.4f} vs late avg {late:.4f}"
-    print(f"[Diff] PASS — loss {diff_losses[0]:.4f} -> {diff_losses[-1]:.4f}")
-    plot_loss(diff_losses, f"Diffusion Training Loss [{mode_str}]", f"{plot_dir}/07_diffusion_loss.png")
+    print(f"[Diff] PASS — loss {diff_losses[0]:.4f} -> {diff_losses[-1]:.4f} "
+          f"({time.time()-t_stage:.0f}s)")
+    plot_loss(diff_losses, f"Diffusion Training Loss [{mode_str}]",
+             f"{plot_dir}/07_diffusion_loss.png")
 
     # ═══════════════════════════════════════════════════════════════════════
     # FULL PIPELINE SAMPLING
@@ -552,9 +668,6 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     print("=" * 70)
 
     diff_model.eval()
-    with torch.no_grad():
-        cond_inf = build_cond(era5_viz, drn_pred)
-
     print(f"Sampling {NUM_ENSEMBLE} ensemble members with {NUM_SAMPLING_STEPS} Heun steps each...")
 
     ensemble_samples = []
@@ -615,13 +728,11 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         im = axes[i].imshow(p, cmap="RdBu_r", vmin=vmin, vmax=vmax, origin="lower")
         axes[i].set_title(f"Sample {i+1}", fontsize=10); axes[i].axis("off")
         plt.colorbar(im, ax=axes[i], fraction=0.046, pad=0.04)
-    # Ensemble mean
     p = _to_np(ens_mean[0, 0])
     vmin, vmax = np.nanpercentile(p, [2, 98])
     im = axes[NUM_ENSEMBLE].imshow(p, cmap="RdBu_r", vmin=vmin, vmax=vmax, origin="lower")
     axes[NUM_ENSEMBLE].set_title("Ensemble Mean", fontsize=10); axes[NUM_ENSEMBLE].axis("off")
     plt.colorbar(im, ax=axes[NUM_ENSEMBLE], fraction=0.046, pad=0.04)
-    # Ensemble std
     p = _to_np(ens_std[0, 0])
     im = axes[NUM_ENSEMBLE+1].imshow(p, cmap="hot_r", origin="lower")
     axes[NUM_ENSEMBLE+1].set_title("Ensemble Spread\n(std dev)", fontsize=10)
@@ -663,9 +774,12 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
 
     fig, ax = plt.subplots(figsize=(8, 5))
     bins = np.linspace(-3, 3, 100)
-    ax.hist(drn_err, bins=bins, density=True, alpha=0.5, color="green", label=f"DRN (std={drn_err.std():.3f})")
-    ax.hist(final_err, bins=bins, density=True, alpha=0.5, color="red", label=f"Final (std={final_err.std():.3f})")
-    ax.hist(ens_err, bins=bins, density=True, alpha=0.5, color="purple", label=f"Ens Mean (std={ens_err.std():.3f})")
+    ax.hist(drn_err, bins=bins, density=True, alpha=0.5, color="green",
+            label=f"DRN (std={drn_err.std():.3f})")
+    ax.hist(final_err, bins=bins, density=True, alpha=0.5, color="red",
+            label=f"Final (std={final_err.std():.3f})")
+    ax.hist(ens_err, bins=bins, density=True, alpha=0.5, color="purple",
+            label=f"Ens Mean (std={ens_err.std():.3f})")
     ax.set_xlabel("Error (normalized)"); ax.set_ylabel("Density")
     ax.set_title("Error Distribution: DRN vs Final vs Ensemble Mean")
     ax.legend(); ax.grid(True, alpha=0.3)
@@ -675,6 +789,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     print(f"  Plot -> {plot_dir}/12_error_histogram.png")
 
     # ── 13: Per-pixel RMSE map ──
+    print(f"[Diagnostics] Per-pixel RMSE over {cfg['num_eval_patches']} patches...")
     with torch.no_grad():
         all_drn_err2 = torch.zeros(OUT_CH, PATCH_SIZE, PATCH_SIZE, device=device)
         all_final_err2 = torch.zeros(OUT_CH, PATCH_SIZE, PATCH_SIZE, device=device)
@@ -684,9 +799,6 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
             c_p = patches[pi][1].unsqueeze(0).to(device)
             dp = drn(e_p)
             all_drn_err2 += (dp - c_p).squeeze(0) ** 2
-            res_p = c_p - dp
-            mu_p, lv_p = vae.encode(res_p)
-            z_p = vae.reparameterize(mu_p, lv_p)
             cond_p = build_cond(e_p, dp)
             with ema.apply():
                 z_s = heun_sampler(diff_model, schedule, cond_p,
@@ -696,14 +808,18 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
             fp = dp + r_s
             all_final_err2 += (fp - c_p).squeeze(0) ** 2
             n_eval += 1
+            if (pi + 1) % 4 == 0:
+                print(f"    Eval patch {pi+1}/{cfg['num_eval_patches']}")
 
     drn_rmse_map = _to_np(torch.sqrt(all_drn_err2 / n_eval)[0])
     final_rmse_map = _to_np(torch.sqrt(all_final_err2 / n_eval)[0])
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4))
-    im1 = ax1.imshow(drn_rmse_map, cmap="hot_r", origin="lower"); ax1.set_title("DRN RMSE"); ax1.axis("off")
+    im1 = ax1.imshow(drn_rmse_map, cmap="hot_r", origin="lower")
+    ax1.set_title("DRN RMSE"); ax1.axis("off")
     plt.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
-    im2 = ax2.imshow(final_rmse_map, cmap="hot_r", origin="lower"); ax2.set_title("Full Pipeline RMSE"); ax2.axis("off")
+    im2 = ax2.imshow(final_rmse_map, cmap="hot_r", origin="lower")
+    ax2.set_title("Full Pipeline RMSE"); ax2.axis("off")
     plt.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
     improvement = drn_rmse_map - final_rmse_map
     vabs = max(abs(np.nanpercentile(improvement, 5)), abs(np.nanpercentile(improvement, 95)))
@@ -727,7 +843,9 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     drn_params = sum(p.numel() for p in drn.parameters())
     vae_params = sum(p.numel() for p in vae.parameters())
     diff_params = sum(p.numel() for p in diff_model.parameters())
-    print(f"  Mode:      {mode_str} ({NUM_TRAIN_STEPS} steps/stage)")
+    print(f"  Mode:      {mode_str}")
+    print(f"  Steps:     DRN={cfg['num_drn_steps']}, VAE={cfg['num_vae_steps']}, "
+          f"Diff={cfg['num_diff_steps']}")
     print(f"  Data:      {len(patches)} real patches loaded (temp only, in-memory)")
     print(f"  DRN:       {drn_losses[0]:.4f} -> {drn_losses[-1]:.4f}  ({drn_params/1e6:.1f}M params)")
     print(f"  VAE:       {vae_losses[0]:.4f} -> {vae_losses[-1]:.4f}  ({vae_params/1e6:.1f}M params)")
@@ -749,8 +867,21 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--plot_dir", type=str, default="sanity_plots")
     parser.add_argument("--extensive", action="store_true",
-                        help="Run 500 steps/stage with bigger models, more data, stricter checks")
+                        help="Run ~3h on A100: 3k DRN + 3k VAE + 10k diffusion steps, bigger models")
     args = parser.parse_args()
 
     success = sanity_check(device=args.device, plot_dir=args.plot_dir, extensive=args.extensive)
+
+    # Auto-commit plots to git
+    if success:
+        repo_dir = Path(__file__).resolve().parent
+        print("\n[Git] Committing sanity plots...")
+        try:
+            subprocess.run(["git", "add", args.plot_dir + "/"], cwd=repo_dir, check=True)
+            subprocess.run(["git", "commit", "-m", "auto-commit plots"], cwd=repo_dir, check=True)
+            subprocess.run(["git", "push"], cwd=repo_dir, check=True)
+            print("[Git] Pushed plots successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"[Git] Warning: git command failed: {e}")
+
     sys.exit(0 if success else 1)

@@ -107,7 +107,8 @@ def main():
         model = DRN(in_ch=13, out_ch=7)
         epochs = args.epochs or 100
         train_drn(model, train_dl, val_dl, epochs=epochs, lr=args.lr,
-                  device=args.device, checkpoint_dir=args.checkpoint_dir)
+                  warmup_epochs=5, device=args.device,
+                  checkpoint_dir=args.checkpoint_dir)
 
     elif args.stage == "vae":
         drn = DRN(in_ch=13, out_ch=7)
@@ -116,6 +117,7 @@ def main():
         vae = VAE(in_ch=7, latent_ch=8)
         epochs = args.epochs or 50
         train_vae(vae, drn, train_dl, val_dl, epochs=epochs, lr=args.lr,
+                  beta_max=1e-3, beta_anneal_frac=0.3, warmup_epochs=3,
                   device=args.device, checkpoint_dir=args.checkpoint_dir)
 
     elif args.stage == "diffusion":
@@ -128,7 +130,8 @@ def main():
         diff_model = DiffusionUNet(in_ch=25, out_ch=8)
         epochs = args.epochs or 100
         train_diffusion(diff_model, drn, vae, train_dl, val_dl, epochs=epochs,
-                        lr=args.lr, device=args.device, checkpoint_dir=args.checkpoint_dir)
+                        lr=2e-4, warmup_epochs=5, device=args.device,
+                        checkpoint_dir=args.checkpoint_dir)
 
 
 if __name__ == "__main__":

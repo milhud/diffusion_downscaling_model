@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=rome
-#SBATCH --time=1:00:00
+#SBATCH --time=6:00:00
 #SBATCH -o sanity_check_output.%j
 #SBATCH -e sanity_check_error.%j
 #SBATCH --account=s1001

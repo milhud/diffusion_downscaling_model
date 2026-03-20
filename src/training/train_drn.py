@@ -16,6 +16,7 @@ def train_drn(
     epochs: int = 100,
     lr: float = 1e-4,
     weight_decay: float = 1e-5,
+    warmup_epochs: int = 5,
     device: str = "cuda",
     checkpoint_dir: str = "checkpoints",
     log_interval: int = 50,
@@ -27,7 +28,12 @@ def train_drn(
         list(model.parameters()) + list(criterion.parameters()),
         lr=lr, weight_decay=weight_decay,
     )
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    warmup_sched = torch.optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=1e-3, total_iters=warmup_epochs)
+    cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=max(1, epochs - warmup_epochs))
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer, schedulers=[warmup_sched, cosine_sched], milestones=[warmup_epochs])
 
     ckpt_dir = Path(checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
