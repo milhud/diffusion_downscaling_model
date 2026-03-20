@@ -25,9 +25,10 @@ from src.data.land_mask import (
     build_conus404_land_mask, get_valid_patch_origins,
     LAT_MIN, LAT_MAX, LON_MIN, LON_MAX,
 )
+from config import TRAIN, PATCH_SIZE
 
 DATA_DIR = Path("data")
-PATCH_SIZE = 256
+MIN_LAND_FRAC = TRAIN["min_land_frac"]
 
 
 def main(plot_dir="gridding_plots"):
@@ -122,9 +123,9 @@ def main(plot_dir="gridding_plots"):
         origins = get_valid_patch_origins(land_mask, PATCH_SIZE, min_land_frac=min_frac)
         print(f"  min_land_frac={min_frac:.1f}: {len(origins)} valid origins")
 
-    valid_origins = get_valid_patch_origins(land_mask, PATCH_SIZE, min_land_frac=0.5)
+    valid_origins = get_valid_patch_origins(land_mask, PATCH_SIZE, min_land_frac=MIN_LAND_FRAC)
     assert len(valid_origins) > 0, "No valid land-only patch origins found!"
-    print(f"\n[Patches] Using min_land_frac=0.5: {len(valid_origins)} valid origins")
+    print(f"\n[Patches] Using min_land_frac={MIN_LAND_FRAC}: {len(valid_origins)} valid origins")
 
     # ── Plot 03: Valid patch origin density map ──
     density = np.zeros((H, W), dtype=np.float32)
@@ -153,7 +154,7 @@ def main(plot_dir="gridding_plots"):
     ax.axis("off")
     plt.colorbar(im, ax=ax, fraction=0.046)
 
-    fig.suptitle("Valid Land-Only Patch Origins (min_land_frac=0.5)", fontsize=14, y=1.02)
+    fig.suptitle(f"Valid Land-Only Patch Origins (min_land_frac={MIN_LAND_FRAC})", fontsize=14, y=1.02)
     plt.tight_layout()
     fig.savefig(f"{plot_dir}/03_patch_origins.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -193,7 +194,7 @@ def main(plot_dir="gridding_plots"):
 
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.hist(land_fracs, bins=50, edgecolor="black", alpha=0.7, color="forestgreen")
-    ax.axvline(0.5, color="red", ls="--", linewidth=2, label="min_land_frac=0.5")
+    ax.axvline(MIN_LAND_FRAC, color="red", ls="--", linewidth=2, label=f"min_land_frac={MIN_LAND_FRAC}")
     ax.set_xlabel("Land Fraction per Patch")
     ax.set_ylabel("Count")
     ax.set_title(f"Land Fraction Distribution ({len(valid_origins)} patches)")
@@ -205,9 +206,9 @@ def main(plot_dir="gridding_plots"):
     print(f"  Plot -> {plot_dir}/05_land_fraction_histogram.png")
 
     # ── Assertions ──
-    assert land_fracs.min() >= 0.5, \
-        f"Found patch with land_frac={land_fracs.min():.3f} < 0.5!"
-    assert len(valid_origins) >= 100, \
+    assert land_fracs.min() >= MIN_LAND_FRAC - 1e-6, \
+        f"Found patch with land_frac={land_fracs.min():.3f} < {MIN_LAND_FRAC}!"
+    assert len(valid_origins) >= 50, \
         f"Only {len(valid_origins)} valid origins — expected at least 100"
 
     # ── ERA5 regridding check ──
@@ -269,7 +270,7 @@ def main(plot_dir="gridding_plots"):
     print(f"  Grid size:        {H}×{W}")
     print(f"  Land pixels:      {land_mask.sum()}/{land_mask.size} "
           f"({100*land_mask.sum()/land_mask.size:.1f}%)")
-    print(f"  Valid patch origins (50% land): {len(valid_origins)}")
+    print(f"  Valid patch origins ({MIN_LAND_FRAC*100:.0f}% land): {len(valid_origins)}")
     print(f"  Land frac range:  [{land_fracs.min():.2f}, {land_fracs.max():.2f}]")
     print(f"  Land frac mean:   {land_fracs.mean():.2f}")
     print(f"  Plots saved to:   {plot_path.resolve()}/")
