@@ -1,44 +1,66 @@
-"""Entry point for training: torchrun train.py --stage [drn|vae|diffusion]"""
+"""Entry point for training: python train.py --stage [drn|vae|diffusion|all]
+
+Uses config.py for variable selection, model architecture, and training defaults.
+Currently configured for temperature only.
+"""
 
 import argparse
+import subprocess
+import time
 import torch
 import numpy as np
 import xarray as xr
 from pathlib import Path
 
-from src.data.normalization import NormalizationStats, ERA5_VARS, CONUS404_VARS, apply_pretransform
+from config import (
+    ERA5_VARS, CONUS404_VARS, PRETRANSFORMS, VARIABLE_PAIRS,
+    IN_CH, OUT_CH, PATCH_SIZE, LATENT_CH, LATENT_H,
+    MODEL, TRAIN, LAT_MIN, LAT_MAX, LON_MIN, LON_MAX,
+)
+from src.data.normalization import NormalizationStats, apply_pretransform
 from src.data.regrid import ERA5Regridder
 from src.data.dataset import build_dataloaders
+from src.data.land_mask import build_conus404_land_mask, get_valid_patch_origins
 from src.models.drn import DRN
 from src.models.vae import VAE
 from src.models.diffusion_unet import DiffusionUNet
+from src.models.edm import EDMSchedule
 from src.training.train_drn import train_drn
 from src.training.train_vae import train_vae
 from src.training.train_diffusion import train_diffusion
+from src.training.evaluation import (
+    plot_loss_curves, evaluate_drn, evaluate_full_pipeline,
+)
+from src.training.ema import EMA
 
 
 def compute_norm_stats(data_dir: str, years: list, cache_path: str = "norm_stats.npz"):
-    """Compute normalization statistics from training years."""
+    """Compute normalization statistics from training years (config-aware)."""
     cache = Path(cache_path)
     stats = NormalizationStats()
+
+    # Override stats class to use config variables
+    stats_era5_vars = ERA5_VARS
+    stats_conus_vars = CONUS404_VARS
+
     if cache.exists():
         print(f"Loading cached norm stats from {cache}")
         stats.load(str(cache))
         return stats
 
-    print(f"Computing normalization stats from {len(years)} years...")
-    era5_accum = {v: [] for v in ERA5_VARS}
-    conus_accum = {v: [] for v in CONUS404_VARS}
+    print(f"Computing normalization stats from {len(years)} years "
+          f"({len(stats_era5_vars)} ERA5 vars, {len(stats_conus_vars)} CONUS404 vars)...")
+    era5_accum = {v: [] for v in stats_era5_vars}
+    conus_accum = {v: [] for v in stats_conus_vars}
 
-    for y in years:
-        # Sample a subset of days per year for efficiency
-        sample_days = list(range(0, 366, 30))  # ~12 days/year
+    for y in years[:5]:  # Use first 5 years for stats (sufficient)
+        sample_days = list(range(0, 366, 30))
 
         with xr.open_dataset(f"{data_dir}/era5_{y}.nc") as ds:
             for d in sample_days:
                 try:
                     for m in range(12):
-                        for var in ERA5_VARS:
+                        for var in stats_era5_vars:
                             vals = ds[var].isel(time=m, valid_time=d).values.astype(np.float32)
                             if not np.all(np.isnan(vals)):
                                 era5_accum[var].append(apply_pretransform(vals.flatten()[::100], var))
@@ -49,14 +71,14 @@ def compute_norm_stats(data_dir: str, years: list, cache_path: str = "norm_stats
         with xr.open_dataset(f"{data_dir}/conus404_yearly_{y}.nc") as ds:
             for d in sample_days:
                 try:
-                    for var in CONUS404_VARS:
+                    for var in stats_conus_vars:
                         vals = ds[var].isel(time=d).values.astype(np.float32)
                         conus_accum[var].append(apply_pretransform(vals.flatten()[::100], var))
                 except (IndexError, ValueError):
                     continue
 
-    era5_samples = {v: np.concatenate(era5_accum[v]) for v in ERA5_VARS}
-    conus_samples = {v: np.concatenate(conus_accum[v]) for v in CONUS404_VARS}
+    era5_samples = {v: np.concatenate(era5_accum[v]) for v in stats_era5_vars}
+    conus_samples = {v: np.concatenate(conus_accum[v]) for v in stats_conus_vars}
 
     stats.compute_from_data(era5_samples, conus_samples)
     stats.save(str(cache))
@@ -64,11 +86,17 @@ def compute_norm_stats(data_dir: str, years: list, cache_path: str = "norm_stats
     return stats
 
 
-def setup_regridder(data_dir: str):
-    """Build ERA5→CONUS404 regridder from coordinate arrays."""
+def setup_regridder_and_mask(data_dir: str):
+    """Build ERA5→CONUS404 regridder and land mask."""
     with xr.open_dataset(f"{data_dir}/era5_1980.nc") as ds:
         era5_lat = ds["latitude"].values
         era5_lon = ds["longitude"].values
+        # Build land mask from ERA5 lsm
+        land_mask = build_conus404_land_mask(
+            xr.open_dataset(f"{data_dir}/conus404_yearly_1980.nc")["lat"].values,
+            xr.open_dataset(f"{data_dir}/conus404_yearly_1980.nc")["lon"].values,
+            ds,
+        )
 
     with xr.open_dataset(f"{data_dir}/conus404_yearly_1980.nc") as ds:
         conus_lat = ds["lat"].values
@@ -76,62 +104,183 @@ def setup_regridder(data_dir: str):
 
     print("Building ERA5→CONUS404 regridder...")
     regridder = ERA5Regridder(era5_lat, era5_lon, conus_lat, conus_lon)
-    return regridder, conus_lat, conus_lon
+
+    # Find valid land-only patch origins
+    min_land_frac = TRAIN.get("min_land_frac", 0.5)
+    valid_origins = get_valid_patch_origins(land_mask, PATCH_SIZE, min_land_frac)
+    print(f"[LandMask] {len(valid_origins)} valid patch origins "
+          f"(min_land_frac={min_land_frac})")
+
+    return regridder, conus_lat, conus_lon, land_mask, valid_origins
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stage", type=str, required=True, choices=["drn", "vae", "diffusion"])
+    parser.add_argument("--stage", type=str, required=True,
+                        choices=["drn", "vae", "diffusion", "all"])
     parser.add_argument("--data_dir", type=str, default="data")
     parser.add_argument("--checkpoint_dir", type=str, default="checkpoints")
+    parser.add_argument("--plot_dir", type=str, default="train_plots")
     parser.add_argument("--drn_checkpoint", type=str, default="checkpoints/drn_best.pt")
     parser.add_argument("--vae_checkpoint", type=str, default="checkpoints/vae_best.pt")
-    parser.add_argument("--epochs", type=int, default=None)
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--cache_dir", type=str, default="cached_data")
     parser.add_argument("--device", type=str, default="cuda")
     args = parser.parse_args()
 
-    train_years = list(range(1980, 2015))
-    val_years = list(range(2015, 2018))
+    plot_path = Path(args.plot_dir)
+    plot_path.mkdir(parents=True, exist_ok=True)
+    Path(args.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
+    train_years = TRAIN["train_years"]
+    val_years = TRAIN["val_years"]
+
+    print("=" * 70)
+    print(f"TRAINING — Stage: {args.stage}")
+    print(f"  Variables: {ERA5_VARS} -> {CONUS404_VARS}")
+    print(f"  IN_CH={IN_CH}, OUT_CH={OUT_CH}, LATENT_CH={LATENT_CH}")
+    print(f"  Train years: {train_years[0]}-{train_years[-1]} ({len(train_years)}y)")
+    print(f"  Val years: {val_years[0]}-{val_years[-1]} ({len(val_years)}y)")
+    print("=" * 70)
+
+    t0 = time.time()
     stats = compute_norm_stats(args.data_dir, train_years)
-    regridder, conus_lat, conus_lon = setup_regridder(args.data_dir)
+    regridder, conus_lat, conus_lon, land_mask, valid_origins = \
+        setup_regridder_and_mask(args.data_dir)
 
     train_dl, val_dl = build_dataloaders(
-        args.data_dir, stats, regridder, conus_lat, conus_lon,
-        batch_size=args.batch_size, train_years=train_years, val_years=val_years,
+        args.data_dir, stats,
+        batch_size=TRAIN["batch_size"],
+        patches_per_day=TRAIN["patches_per_day"],
+        num_workers=2,  # mmap + JSON NaN skip is fast; 2 workers for prefetch
+        train_years=train_years, val_years=val_years,
+        land_mask=land_mask, valid_origins=valid_origins,
+        era5_vars=ERA5_VARS, conus_vars=CONUS404_VARS,
+        cache_dir=args.cache_dir,
+        regridder=regridder, conus_lat=conus_lat, conus_lon=conus_lon,
     )
+    print(f"[Data] Setup done in {time.time()-t0:.0f}s")
 
-    if args.stage == "drn":
-        model = DRN(in_ch=13, out_ch=7)
-        epochs = args.epochs or 100
-        train_drn(model, train_dl, val_dl, epochs=epochs, lr=args.lr,
-                  warmup_epochs=5, device=args.device,
-                  checkpoint_dir=args.checkpoint_dir)
+    # Grab a fixed eval batch for visualization
+    eval_era5, eval_conus = next(iter(val_dl))
 
-    elif args.stage == "vae":
-        drn = DRN(in_ch=13, out_ch=7)
-        drn.load_state_dict(torch.load(args.drn_checkpoint)["model_state_dict"])
+    stages = [args.stage] if args.stage != "all" else ["drn", "vae", "diffusion"]
 
-        vae = VAE(in_ch=7, latent_ch=8)
-        epochs = args.epochs or 50
-        train_vae(vae, drn, train_dl, val_dl, epochs=epochs, lr=args.lr,
-                  beta_max=1e-3, beta_anneal_frac=0.3, warmup_epochs=3,
-                  device=args.device, checkpoint_dir=args.checkpoint_dir)
+    # ── DRN ──
+    if "drn" in stages:
+        print("\n" + "=" * 70)
+        print("STAGE 1: DRN")
+        print("=" * 70)
+        drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=MODEL["drn_base_ch"],
+                  ch_mults=MODEL["drn_ch_mults"],
+                  num_res_blocks=MODEL["drn_num_res_blocks"],
+                  attn_resolutions=MODEL["drn_attn_resolutions"])
+        print(f"[DRN] Params: {sum(p.numel() for p in drn.parameters()):,}")
 
-    elif args.stage == "diffusion":
-        drn = DRN(in_ch=13, out_ch=7)
-        drn.load_state_dict(torch.load(args.drn_checkpoint)["model_state_dict"])
+        drn = train_drn(drn, train_dl, val_dl,
+                        epochs=TRAIN["drn_epochs"],
+                        lr=TRAIN["drn_lr"],
+                        warmup_epochs=TRAIN["drn_warmup_epochs"],
+                        device=args.device,
+                        checkpoint_dir=args.checkpoint_dir,
+                        plot_dir=args.plot_dir,
+                        eval_every=3,
+                        num_output_vars=OUT_CH,
+                        precip_channel=-1)
 
-        vae = VAE(in_ch=7, latent_ch=8)
-        vae.load_state_dict(torch.load(args.vae_checkpoint)["model_state_dict"])
+    # ── VAE ──
+    if "vae" in stages:
+        print("\n" + "=" * 70)
+        print("STAGE 2a: VAE")
+        print("=" * 70)
+        if "drn" not in stages:
+            drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=MODEL["drn_base_ch"],
+                      ch_mults=MODEL["drn_ch_mults"],
+                      num_res_blocks=MODEL["drn_num_res_blocks"],
+                      attn_resolutions=MODEL["drn_attn_resolutions"])
+            drn.load_state_dict(torch.load(args.drn_checkpoint)["model_state_dict"])
 
-        diff_model = DiffusionUNet(in_ch=25, out_ch=8)
-        epochs = args.epochs or 100
-        train_diffusion(diff_model, drn, vae, train_dl, val_dl, epochs=epochs,
-                        lr=2e-4, warmup_epochs=5, device=args.device,
+        vae = VAE(in_ch=OUT_CH, latent_ch=LATENT_CH, base_ch=MODEL["vae_base_ch"])
+        print(f"[VAE] Params: {sum(p.numel() for p in vae.parameters()):,}")
+
+        vae = train_vae(vae, drn, train_dl, val_dl,
+                        epochs=TRAIN["vae_epochs"],
+                        lr=TRAIN["vae_lr"],
+                        beta_max=TRAIN["vae_beta_max"],
+                        beta_anneal_frac=TRAIN["vae_beta_anneal_frac"],
+                        warmup_epochs=TRAIN["vae_warmup_epochs"],
+                        device=args.device,
                         checkpoint_dir=args.checkpoint_dir)
+
+    # ── Diffusion ──
+    if "diffusion" in stages:
+        print("\n" + "=" * 70)
+        print("STAGE 2b: Diffusion")
+        print("=" * 70)
+        if "drn" not in stages:
+            drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=MODEL["drn_base_ch"],
+                      ch_mults=MODEL["drn_ch_mults"],
+                      num_res_blocks=MODEL["drn_num_res_blocks"],
+                      attn_resolutions=MODEL["drn_attn_resolutions"])
+            drn.load_state_dict(torch.load(args.drn_checkpoint)["model_state_dict"])
+        if "vae" not in stages:
+            vae = VAE(in_ch=OUT_CH, latent_ch=LATENT_CH, base_ch=MODEL["vae_base_ch"])
+            vae.load_state_dict(torch.load(args.vae_checkpoint)["model_state_dict"])
+
+        # Diffusion input: latent_ch (z_noisy) + IN_CH (ERA5 down) + latent_ch (DRN encoded) + 2 (pos)
+        diff_in_ch = LATENT_CH + IN_CH + LATENT_CH + 2
+        diff_model = DiffusionUNet(
+            in_ch=diff_in_ch, out_ch=LATENT_CH,
+            base_ch=MODEL["diff_base_ch"],
+            ch_mults=MODEL["diff_ch_mults"],
+            num_res_blocks=MODEL["diff_num_res_blocks"],
+            attn_resolutions=MODEL["diff_attn_resolutions"],
+            time_dim=MODEL["diff_time_dim"],
+        )
+        print(f"[Diff] Params: {sum(p.numel() for p in diff_model.parameters()):,}")
+
+        diff_model, ema = train_diffusion(
+            diff_model, drn, vae, train_dl, val_dl,
+            epochs=TRAIN["diff_epochs"],
+            lr=TRAIN["diff_lr"],
+            warmup_epochs=TRAIN["diff_warmup_epochs"],
+            ema_decay=TRAIN["ema_decay"],
+            p_uncond=TRAIN["p_uncond"],
+            device=args.device,
+            checkpoint_dir=args.checkpoint_dir,
+            plot_dir=args.plot_dir,
+            eval_every=3,
+            latent_ch=LATENT_CH,
+        )
+
+        # Full pipeline eval
+        schedule = EDMSchedule()
+        drn_rmse, final_rmse = evaluate_full_pipeline(
+            drn, vae, diff_model, ema, schedule,
+            eval_era5, eval_conus, args.plot_dir,
+            epoch=TRAIN["diff_epochs"],
+            latent_ch=LATENT_CH,
+            num_sampling_steps=16, num_ensemble=4,
+            device=args.device,
+        )
+        print(f"[Pipeline] DRN RMSE: {drn_rmse:.4f}, Full RMSE: {final_rmse:.4f}")
+
+    total_time = time.time() - t0
+    print(f"\n{'='*70}")
+    print(f"TRAINING COMPLETE — {total_time/3600:.1f}h")
+    print(f"  Checkpoints: {args.checkpoint_dir}/")
+    print(f"  Plots: {args.plot_dir}/")
+    print(f"{'='*70}")
+
+    # Auto-commit plots
+    repo_dir = Path(__file__).resolve().parent
+    print("\n[Git] Committing training plots...")
+    try:
+        subprocess.run(["git", "add", args.plot_dir + "/"], cwd=repo_dir, check=True)
+        subprocess.run(["git", "commit", "-m", "auto-commit plots"], cwd=repo_dir, check=True)
+        subprocess.run(["git", "push"], cwd=repo_dir, check=True)
+        print("[Git] Pushed plots successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"[Git] Warning: git command failed: {e}")
 
 
 if __name__ == "__main__":

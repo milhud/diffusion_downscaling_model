@@ -24,7 +24,7 @@ ERA5_VARS = list(VARIABLE_PAIRS.keys())
 CONUS404_VARS = list(VARIABLE_PAIRS.values())
 
 # Number of input channels = len(ERA5_VARS) + num_static_fields
-NUM_STATIC_FIELDS = 5  # terrain, orog_var, lat, lon, lsm
+NUM_STATIC_FIELDS = 6  # terrain, orog_var, lat, lon, lai, lsm
 IN_CH = len(ERA5_VARS) + NUM_STATIC_FIELDS
 OUT_CH = len(CONUS404_VARS)
 

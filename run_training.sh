@@ -6,7 +6,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=rome
-#SBATCH --time=48:00:00
+#SBATCH --time=12:00:00
+#SBATCH --qos=alla100
 #SBATCH -o train_output.%j
 #SBATCH -e train_error.%j
 #SBATCH --account=s1001
@@ -17,7 +18,7 @@
 # Time estimate (temperature only, 1 A100):
 #   Sanity check extensive (16k steps) took ~1.5h
 #   Full training: ~400k total steps → ~40h estimated
-#   Requesting 48h with buffer.
+#   alla100 QOS caps at 12h; use --stage to split across jobs.
 #
 # Usage:
 #   sbatch run_training.sh              # train all stages sequentially
@@ -40,7 +41,7 @@ module load python/GEOSpyD/24.3.0-0/3.12
 
 # Default: train all stages end-to-end.
 # Override: sbatch run_training.sh --stage drn
-python train.py --stage all --data_dir data --checkpoint_dir checkpoints \
+python -u train.py --stage all --data_dir data --checkpoint_dir checkpoints \
     --plot_dir train_plots --device cuda "$@"
 
 exit 0

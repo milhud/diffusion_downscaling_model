@@ -258,14 +258,39 @@ def _to_np(t):
     return t
 
 
-def plot_stage_panels(panels, titles, save_path, suptitle="", cmap="RdBu_r"):
+def plot_stage_panels(panels, titles, save_path, suptitle="", cmap="RdBu_r",
+                      share_scale=None):
+    """Plot panels side by side.
+
+    Args:
+        share_scale: list of group indices, e.g. [0,0,0,1] means first 3 panels
+                     share a colorbar range, 4th has its own. None = each independent.
+    """
     n = len(panels)
     fig, axes = plt.subplots(1, n, figsize=(4.5 * n, 4))
     if n == 1:
         axes = [axes]
-    for ax, panel, title in zip(axes, panels, titles):
-        p = _to_np(panel)
-        vmin, vmax = np.nanpercentile(p, [2, 98])
+    panels_np = [_to_np(p) for p in panels]
+
+    # Compute shared vmin/vmax per group
+    if share_scale is not None:
+        groups = {}
+        for i, g in enumerate(share_scale):
+            groups.setdefault(g, []).append(i)
+        group_ranges = {}
+        for g, idxs in groups.items():
+            all_vals = np.concatenate([panels_np[i].flatten() for i in idxs])
+            all_vals = all_vals[np.isfinite(all_vals)]
+            group_ranges[g] = np.nanpercentile(all_vals, [2, 98])
+    else:
+        group_ranges = None
+
+    for i, (ax, p, title) in enumerate(zip(axes, panels_np, titles)):
+        if group_ranges is not None:
+            vmin, vmax = group_ranges[share_scale[i]]
+        else:
+            finite = p[np.isfinite(p)] if np.any(np.isfinite(p)) else np.array([0, 1])
+            vmin, vmax = np.nanpercentile(finite, [2, 98])
         im = ax.imshow(p, cmap=cmap, vmin=vmin, vmax=vmax, origin="lower")
         ax.set_title(title, fontsize=10)
         ax.axis("off")
@@ -336,7 +361,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     NUM_ENSEMBLE = cfg["num_ensemble"]
     LOG_EVERY = cfg["log_every"]
 
-    IN_CH = 6
+    IN_CH = 7   # 1 ERA5 var + 6 static (terrain, orog_var, lat, lon, lai, lsm)
     OUT_CH = 1
     LATENT_CH = 4
 
@@ -367,6 +392,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         ["ERA5 t2m (regridded)", "CONUS404 T2 (target)"],
         f"{plot_dir}/00_input_vs_target_full.png",
         suptitle=f"Raw Input vs Target — Full Domain (Day {day_labels[0]})",
+        share_scale=[0, 0],
     )
 
     e0, c0 = patches[0]
@@ -375,6 +401,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         ["ERA5 t2m patch", "CONUS404 T2 patch"],
         f"{plot_dir}/01_patch_example.png",
         suptitle="Example 256x256 Patch",
+        share_scale=[0, 0],
     )
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -432,6 +459,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         ["ERA5 t2m", "CONUS404 T2\n(target)", "DRN prediction\n(Stage 1)", "Residual\n(target - DRN)"],
         f"{plot_dir}/03_stage1_result.png",
         suptitle="Stage 1: DRN Downscaling",
+        share_scale=[0, 0, 0, 1],  # ERA5/target/DRN share scale, residual separate
     )
 
     # DRN multi-patch comparison
@@ -542,6 +570,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
          "Noisy latent z_t\n(sigma=10)"],
         f"{plot_dir}/05_stage2a_vae.png",
         suptitle="Stage 2a: VAE Encoding/Decoding of Residual",
+        share_scale=[0, 0, 1, 1],  # residual/recon share, latents share
     )
 
     # Latent distribution
@@ -647,6 +676,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
                  f"Error (step {step+1})"],
                 f"{plot_dir}/07s_diff_snapshot_{step+1:05d}.png",
                 suptitle=f"Diffusion Progress — Step {step+1}",
+                share_scale=[0, 0, 0, 1],
             )
             diff_model.train()
 
@@ -710,6 +740,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
          "Decoded residual\n(diffusion)", "Final prediction\n(DRN + diff)"],
         f"{plot_dir}/08_full_pipeline.png",
         suptitle="Full Pipeline: ERA5 -> DRN -> Diffusion -> Final",
+        share_scale=[0, 0, 0, 1, 2, 2, 1, 0],  # input/target/DRN/final share; residuals share; latents share
     )
 
     # ── 09: Target vs final vs error ──
@@ -718,6 +749,7 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         ["CONUS404 T2 (target)", "Final prediction", "Error (target - pred)"],
         f"{plot_dir}/09_target_vs_prediction.png",
         suptitle="Target vs Final Prediction (temperature)",
+        share_scale=[0, 0, 1],  # target/pred share scale, error separate
     )
 
     # ── 10: Ensemble spread visualization ──
