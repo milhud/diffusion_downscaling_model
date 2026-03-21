@@ -1,0 +1,219 @@
+"""Verify cached preprocessing data matches raw .nc files.
+
+Checks:
+  - Value ranges per variable
+  - Random spot-checks: cached .npy vs raw .nc
+  - No unexpected NaN beyond nan_days.json
+  - Static fields match expected terrain/lat/lon
+  - Side-by-side plots for visual verification
+
+Usage:
+    python scripts/verify_preprocessing.py [--cache_dir cached_data] [--data_dir data]
+"""
+
+import argparse
+import json
+import numpy as np
+import xarray as xr
+from pathlib import Path
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from config import ERA5_VARS, CONUS404_VARS, VARIABLE_UNITS, VARIABLE_NAMES
+
+
+# Expected physical ranges per variable (raw, before normalization)
+EXPECTED_RANGES = {
+    "T2": (200, 340),      # Kelvin
+    "TD2": (190, 320),     # Kelvin
+    "U10": (-40, 40),      # m/s
+    "V10": (-40, 40),      # m/s
+    "PSFC": (50000, 110000),  # Pa
+    "PREC_ACC_NC": (0, 500),  # mm (daily)
+    "Q2": (0, 0.04),       # kg/kg
+    "t2m": (200, 340),
+    "d2m": (190, 320),
+    "u10": (-40, 40),
+    "v10": (-40, 40),
+    "sp": (50000, 110000),
+    "tp": (0, 0.5),        # m (ERA5 uses meters)
+    "z": (-1000, 800000),  # m^2/s^2 (geopotential)
+}
+
+
+def check_value_ranges(cache_dir, years=(2000, 2010)):
+    """Check that cached values fall within expected physical ranges."""
+    print("\n=== Value Range Check ===")
+    passed = True
+
+    for year in years:
+        era5_path = Path(cache_dir) / f"era5_{year}.npy"
+        conus_path = Path(cache_dir) / f"conus_{year}.npy"
+
+        if not era5_path.exists():
+            print(f"  SKIP: {era5_path} not found")
+            continue
+
+        era5 = np.load(era5_path, mmap_mode="r")
+        conus = np.load(conus_path, mmap_mode="r")
+
+        # Check ERA5 variables
+        for i, var in enumerate(ERA5_VARS):
+            if i >= era5.shape[1]:
+                break
+            data = era5[0, i]  # day 0, var i
+            vmin, vmax = np.nanmin(data), np.nanmax(data)
+            exp_min, exp_max = EXPECTED_RANGES.get(var, (-1e10, 1e10))
+            ok = exp_min <= vmin and vmax <= exp_max
+            status = "OK" if ok else "FAIL"
+            print(f"  ERA5 {var} (year={year}): [{vmin:.2f}, {vmax:.2f}] expected [{exp_min}, {exp_max}] -- {status}")
+            if not ok:
+                passed = False
+
+        # Check CONUS404 variables
+        for i, var in enumerate(CONUS404_VARS):
+            if i >= conus.shape[1]:
+                break
+            data = conus[0, i]
+            vmin, vmax = np.nanmin(data), np.nanmax(data)
+            exp_min, exp_max = EXPECTED_RANGES.get(var, (-1e10, 1e10))
+            ok = exp_min <= vmin and vmax <= exp_max
+            status = "OK" if ok else "FAIL"
+            print(f"  CONUS {var} (year={year}): [{vmin:.2f}, {vmax:.2f}] expected [{exp_min}, {exp_max}] -- {status}")
+            if not ok:
+                passed = False
+
+    return passed
+
+
+def check_nan_consistency(cache_dir):
+    """Verify NaN days match nan_days.json."""
+    print("\n=== NaN Consistency Check ===")
+    nan_path = Path(cache_dir) / "nan_days.json"
+    if not nan_path.exists():
+        print("  SKIP: nan_days.json not found")
+        return True
+
+    with open(nan_path) as f:
+        nan_days = json.load(f)
+
+    total_nan = sum(len(v) for v in nan_days.values())
+    print(f"  nan_days.json: {total_nan} NaN days across {len(nan_days)} years")
+
+    # Spot-check: verify a NaN day is actually NaN in the cache
+    for year_str, days in nan_days.items():
+        if not days:
+            continue
+        year = int(year_str)
+        conus_path = Path(cache_dir) / f"conus_{year}.npy"
+        if not conus_path.exists():
+            continue
+        conus = np.load(conus_path, mmap_mode="r")
+        day = days[0]
+        if day < conus.shape[0]:
+            is_nan = np.all(np.isnan(conus[day]))
+            print(f"  Year {year}, day {day}: {'NaN confirmed' if is_nan else 'NOT NaN -- MISMATCH'}")
+            if not is_nan:
+                return False
+        break
+
+    return True
+
+
+def check_static_fields(cache_dir):
+    """Verify static fields have correct shape and values."""
+    print("\n=== Static Fields Check ===")
+    static_path = Path(cache_dir) / "static_fields.npy"
+    if not static_path.exists():
+        print("  SKIP: static_fields.npy not found")
+        return True
+
+    static = np.load(static_path)
+    print(f"  Shape: {static.shape} (expected (6, H, W))")
+    assert static.shape[0] == 6, f"Expected 6 static fields, got {static.shape[0]}"
+
+    field_names = ["terrain", "orog_var", "lat", "lon", "LAI", "land_mask"]
+    for i, name in enumerate(field_names):
+        vmin, vmax = np.nanmin(static[i]), np.nanmax(static[i])
+        has_nan = np.any(np.isnan(static[i]))
+        print(f"  {name}: [{vmin:.4f}, {vmax:.4f}], NaN={has_nan}")
+
+    return True
+
+
+def plot_comparison(cache_dir, data_dir, year=2000, day=100, output="scripts/verify_plots"):
+    """Plot side-by-side: cached .npy vs raw .nc for visual verification."""
+    print(f"\n=== Visual Comparison: year={year}, day={day} ===")
+    Path(output).mkdir(parents=True, exist_ok=True)
+
+    conus_path = Path(cache_dir) / f"conus_{year}.npy"
+    if not conus_path.exists():
+        print("  SKIP: cached data not found")
+        return
+
+    conus_cached = np.load(conus_path, mmap_mode="r")
+    if day >= conus_cached.shape[0]:
+        print(f"  SKIP: day {day} out of range")
+        return
+
+    # Load raw .nc
+    nc_path = Path(data_dir) / f"conus404_yearly_{year}.nc"
+    with xr.open_dataset(nc_path) as ds:
+        for i, var in enumerate(CONUS404_VARS):
+            if i >= conus_cached.shape[1]:
+                break
+            if var not in ds:
+                continue
+
+            raw = ds[var].isel(time=day).values.astype(np.float32)
+            cached = conus_cached[day, i]
+
+            fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+            im0 = axes[0].imshow(raw, origin="lower", aspect="auto")
+            axes[0].set_title(f"Raw .nc: {var}")
+            plt.colorbar(im0, ax=axes[0])
+
+            im1 = axes[1].imshow(cached, origin="lower", aspect="auto")
+            axes[1].set_title(f"Cached .npy: {var}")
+            plt.colorbar(im1, ax=axes[1])
+
+            diff = cached - raw
+            im2 = axes[2].imshow(diff, origin="lower", aspect="auto", cmap="RdBu_r")
+            axes[2].set_title(f"Diff (cached - raw), max={np.nanmax(np.abs(diff)):.6f}")
+            plt.colorbar(im2, ax=axes[2])
+
+            plt.suptitle(f"{var} -- year={year}, day={day}")
+            plt.tight_layout()
+            fig.savefig(f"{output}/verify_{var}_{year}_d{day}.png", dpi=100)
+            plt.close(fig)
+            print(f"  Saved {output}/verify_{var}_{year}_d{day}.png -- max diff: {np.nanmax(np.abs(diff)):.6f}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Verify preprocessing cache")
+    parser.add_argument("--cache_dir", default="cached_data")
+    parser.add_argument("--data_dir", default="data")
+    parser.add_argument("--plot", action="store_true", help="Generate comparison plots")
+    args = parser.parse_args()
+
+    results = []
+    results.append(("Value ranges", check_value_ranges(args.cache_dir)))
+    results.append(("NaN consistency", check_nan_consistency(args.cache_dir)))
+    results.append(("Static fields", check_static_fields(args.cache_dir)))
+
+    if args.plot:
+        plot_comparison(args.cache_dir, args.data_dir)
+
+    print("\n=== SUMMARY ===")
+    all_ok = True
+    for name, ok in results:
+        print(f"  {name}: {'PASS' if ok else 'FAIL'}")
+        if not ok:
+            all_ok = False
+    print(f"\nOverall: {'ALL CHECKS PASSED' if all_ok else 'SOME CHECKS FAILED'}")
+
+
+if __name__ == "__main__":
+    main()

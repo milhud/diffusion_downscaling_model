@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..models.drn import DRN
 from ..training.losses import PerVariableMSE
-from ..training.evaluation import evaluate_drn, plot_loss_curves
+from src.evaluation.plots import evaluate_drn, plot_loss_curves
 
 
 def train_drn(

@@ -17,10 +17,10 @@ from config import (
     IN_CH, OUT_CH, PATCH_SIZE, LATENT_CH, LATENT_H,
     MODEL, TRAIN, LAT_MIN, LAT_MAX, LON_MIN, LON_MAX,
 )
-from src.data.normalization import NormalizationStats, apply_pretransform
-from src.data.regrid import ERA5Regridder
+from src.preprocessing.normalization import NormalizationStats, apply_pretransform
+from src.preprocessing.regrid import ERA5Regridder
+from src.preprocessing.land_mask import build_conus404_land_mask, get_valid_patch_origins
 from src.data.dataset import build_dataloaders
-from src.data.land_mask import build_conus404_land_mask, get_valid_patch_origins
 from src.models.drn import DRN
 from src.models.vae import VAE
 from src.models.diffusion_unet import DiffusionUNet
@@ -28,7 +28,7 @@ from src.models.edm import EDMSchedule
 from src.training.train_drn import train_drn
 from src.training.train_vae import train_vae
 from src.training.train_diffusion import train_diffusion
-from src.training.evaluation import (
+from src.evaluation.plots import (
     plot_loss_curves, evaluate_drn, evaluate_full_pipeline,
 )
 from src.training.ema import EMA

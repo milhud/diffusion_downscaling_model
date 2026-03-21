@@ -10,7 +10,7 @@ from ..models.vae import VAE
 from ..models.diffusion_unet import DiffusionUNet
 from ..models.edm import EDMSchedule, edm_training_loss, heun_sampler
 from ..training.ema import EMA
-from ..training.evaluation import plot_loss_curves, plot_stage_comparison, radial_power_spectrum
+from src.evaluation.plots import plot_loss_curves, plot_stage_comparison, radial_power_spectrum
 
 import numpy as np
 import matplotlib
