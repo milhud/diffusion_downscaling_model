@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from pathlib import Path
+from config import IN_CH
 
 import matplotlib
 matplotlib.use("Agg")
@@ -149,7 +150,7 @@ def evaluate_full_pipeline(drn, vae, diff_model, ema, schedule, era5_batch,
         drn_pred = drn(era5)
         residual = conus - drn_pred
         # Build conditioning
-        era5_down = F.interpolate(era5[:, :1], (latent_h, latent_w),
+        era5_down = F.interpolate(era5[:, :IN_CH], (latent_h, latent_w),
                                   mode="bilinear", align_corners=False)
         mu_drn, _ = vae.encode(drn_pred)
         ys = torch.linspace(-1, 1, latent_h, device=device)
