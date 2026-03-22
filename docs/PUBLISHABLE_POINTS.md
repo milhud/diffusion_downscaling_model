@@ -208,6 +208,20 @@ The `--resume` flag loads model weights, optimizer state, LR scheduler, EMA
 weights (diffusion), and loss history from `*_latest.pt` checkpoints, then
 continues training from the next epoch.
 
+#### Auto-resubmit (handles 12h SLURM walltime limit)
+
+```bash
+# Start daemon — survives terminal exit, auto-resubmits with --resume
+# until all epochs complete (up to 20 resubmissions):
+bash scripts/start_training_daemon.sh --stage diffusion
+
+# Monitor progress:
+tail -f train_loop.log
+
+# Stop daemon:
+kill $(cat .train_daemon.pid)
+```
+
 ### Inference
 ```bash
 python -m src.inference.sample_nc --input era5_input.nc --output downscaled.nc
