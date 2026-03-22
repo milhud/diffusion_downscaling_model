@@ -76,11 +76,22 @@ def train_diffusion(
     eval_every: int = 3,
     latent_ch: int = 4,
     resume: bool = False,
+    grad_accum: int = 1,
+    cosine_restart_period: int = 0,
+    p_mean: float = -1.2,
+    p_std: float = 1.2,
 ):
     """Train the conditional diffusion UNet in VAE latent space.
 
     Args:
         resume: If True, load from diffusion_latest.pt and continue training.
+        grad_accum: Gradient accumulation steps (effective batch = batch_size * grad_accum).
+        cosine_restart_period: If >0, use CosineAnnealingWarmRestarts with this
+            period (in epochs) after warmup. If 0, use single cosine decay.
+        p_mean: EDM noise schedule log-normal mean. Lower values bias toward
+            higher noise levels; higher (e.g. -0.8) trains more on fine details.
+        p_std: EDM noise schedule log-normal std. Smaller values concentrate
+            training around the mean noise level.
     """
     diff_model = diff_model.to(device)
     drn = drn.to(device).eval()
@@ -90,15 +101,24 @@ def train_diffusion(
     for p in vae.parameters():
         p.requires_grad_(False)
 
-    schedule = EDMSchedule()
+    schedule = EDMSchedule(p_mean=p_mean, p_std=p_std)
     ema = EMA(diff_model, decay=ema_decay)
     optimizer = torch.optim.AdamW(diff_model.parameters(), lr=lr, weight_decay=1e-5)
     warmup_sched = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=1e-3, total_iters=warmup_epochs)
-    cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=max(1, epochs - warmup_epochs))
+    if cosine_restart_period > 0:
+        cosine_sched = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, T_0=cosine_restart_period, T_mult=1)
+    else:
+        cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=max(1, epochs - warmup_epochs))
     scheduler = torch.optim.lr_scheduler.SequentialLR(
         optimizer, schedulers=[warmup_sched, cosine_sched], milestones=[warmup_epochs])
+
+    print(f"  [Diff] Noise schedule: p_mean={p_mean}, p_std={p_std}")
+    print(f"  [Diff] Grad accumulation: {grad_accum} (effective batch={train_loader.batch_size * grad_accum})")
+    if cosine_restart_period > 0:
+        print(f"  [Diff] Cosine warm restarts: T_0={cosine_restart_period} epochs")
 
     ckpt_dir = Path(checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -138,6 +158,7 @@ def train_diffusion(
     for epoch in range(start_epoch, epochs):
         diff_model.train()
         epoch_loss = 0.0
+        optimizer.zero_grad()
 
         for step, (era5, conus) in enumerate(train_loader):
             era5 = era5.to(device)
@@ -153,19 +174,30 @@ def train_diffusion(
             # Build conditioning
             cond = _build_diffusion_cond(era5, drn_pred, vae, pos_emb, p_uncond=p_uncond)
 
-            # EDM training loss
+            # EDM training loss (scaled for gradient accumulation)
             loss = edm_training_loss(diff_model, schedule, z_clean, cond)
-
-            optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(diff_model.parameters(), 1.0)
-            optimizer.step()
-            ema.update()
+            (loss / grad_accum).backward()
 
             epoch_loss += loss.item()
             all_train_losses.append(loss.item())
+
+            # Step optimizer every grad_accum mini-batches
+            if (step + 1) % grad_accum == 0:
+                torch.nn.utils.clip_grad_norm_(diff_model.parameters(), 1.0)
+                optimizer.step()
+                ema.update()
+                optimizer.zero_grad()
+
             if step % log_interval == 0:
-                print(f"  [Diff] Epoch {epoch+1}, Step {step}, Loss: {loss.item():.6f}")
+                cur_lr = optimizer.param_groups[0]['lr']
+                print(f"  [Diff] Epoch {epoch+1}, Step {step}, Loss: {loss.item():.6f}, LR: {cur_lr:.2e}")
+
+        # Handle leftover gradients at end of epoch
+        if (step + 1) % grad_accum != 0:
+            torch.nn.utils.clip_grad_norm_(diff_model.parameters(), 1.0)
+            optimizer.step()
+            ema.update()
+            optimizer.zero_grad()
 
         scheduler.step()
         avg_train = epoch_loss / max(len(train_loader), 1)

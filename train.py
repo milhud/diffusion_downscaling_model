@@ -255,6 +255,10 @@ def main():
             eval_every=3,
             latent_ch=LATENT_CH,
             resume=args.resume,
+            grad_accum=TRAIN.get("diff_grad_accum", 1),
+            cosine_restart_period=TRAIN.get("diff_cosine_restart_period", 0),
+            p_mean=TRAIN.get("diff_p_mean", -1.2),
+            p_std=TRAIN.get("diff_p_std", 1.2),
         )
 
         # Full pipeline eval
