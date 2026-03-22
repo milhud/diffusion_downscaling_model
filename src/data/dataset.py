@@ -154,7 +154,12 @@ class CachedDownscalingDataset(Dataset):
 
 
 class DownscalingDataset(Dataset):
-    """Fallback dataset that reads netCDF and regrids on-the-fly (slow)."""
+    """On-the-fly dataset that reads netCDF and regrids per sample.
+
+    Caches opened xarray dataset handles and static fields to avoid
+    re-opening files every sample. ~2-3x slower than cached .npy but
+    requires no disk space for preprocessed data.
+    """
 
     def __init__(
         self,
@@ -184,14 +189,55 @@ class DownscalingDataset(Dataset):
         self.era5_vars = era5_vars or DEFAULT_ERA5_VARS
         self.conus_vars = conus_vars or DEFAULT_CONUS404_VARS
 
+        # Pre-scan for NaN days in CONUS404 (check first conus var)
+        self._nan_days = {}
+        first_conus_var = self.conus_vars[0]
+        print(f"[Data] Scanning {len(years)} years for NaN days...")
+        for y in years:
+            conus_path = self.data_dir / f"conus404_yearly_{y}.nc"
+            bad_days = set()
+            with xr.open_dataset(conus_path) as ds:
+                n_days = ds.sizes.get("time", ds[first_conus_var].shape[0])
+                for d in range(n_days):
+                    vals = ds[first_conus_var].isel(time=d).values
+                    if np.all(np.isnan(vals)):
+                        bad_days.add(d)
+            if bad_days:
+                self._nan_days[y] = bad_days
+                print(f"  {y}: {len(bad_days)} NaN days skipped")
+
         self.index = []
+        skipped = 0
         for y in years:
             n_days = 366 if _is_leap(y) else 365
+            bad = self._nan_days.get(y, set())
             for d in range(n_days):
+                if d in bad:
+                    skipped += 1
+                    continue
                 for _ in range(patches_per_day):
                     self.index.append((y, d))
+        if skipped > 0:
+            print(f"[Data] Skipped {skipped} fully-NaN days total")
 
         self._static_fields = None
+        # Per-worker caches for opened datasets (lazy init in __getitem__)
+        self._era5_cache = {}
+        self._conus_cache = {}
+
+    def _get_era5_ds(self, year: int) -> xr.Dataset:
+        """Get cached xarray dataset handle for ERA5 year."""
+        if year not in self._era5_cache:
+            self._era5_cache[year] = xr.open_dataset(
+                self.data_dir / f"era5_{year}.nc")
+        return self._era5_cache[year]
+
+    def _get_conus_ds(self, year: int) -> xr.Dataset:
+        """Get cached xarray dataset handle for CONUS404 year."""
+        if year not in self._conus_cache:
+            self._conus_cache[year] = xr.open_dataset(
+                self.data_dir / f"conus404_yearly_{year}.nc")
+        return self._conus_cache[year]
 
     def _get_static_fields(self, conus_ds: xr.Dataset) -> np.ndarray:
         if self._static_fields is not None:
@@ -230,12 +276,11 @@ class DownscalingDataset(Dataset):
         leap = _is_leap(year)
         month_idx = _month_for_day(day_idx + 1, leap)
 
-        era5_path = self.data_dir / f"era5_{year}.nc"
-        with xr.open_dataset(era5_path) as ds:
-            era5_day = {}
-            for var in self.era5_vars:
-                raw = ds[var].isel(time=month_idx, valid_time=day_idx).values
-                era5_day[var] = apply_pretransform(raw.astype(np.float32), var)
+        era5_ds = self._get_era5_ds(year)
+        era5_day = {}
+        for var in self.era5_vars:
+            raw = era5_ds[var].isel(time=month_idx, valid_time=day_idx).values
+            era5_day[var] = apply_pretransform(raw.astype(np.float32), var)
 
         era5_stack = np.stack([era5_day[v] for v in self.era5_vars], axis=0)
         if self.regridder is not None:
@@ -243,13 +288,12 @@ class DownscalingDataset(Dataset):
         else:
             raise RuntimeError("Regridder not initialized")
 
-        conus_path = self.data_dir / f"conus404_yearly_{year}.nc"
-        with xr.open_dataset(conus_path) as ds:
-            conus_day = {}
-            for var in self.conus_vars:
-                raw = ds[var].isel(time=day_idx).values
-                conus_day[var] = apply_pretransform(raw.astype(np.float32), var)
-            static = self._get_static_fields(ds)
+        conus_ds = self._get_conus_ds(year)
+        conus_day = {}
+        for var in self.conus_vars:
+            raw = conus_ds[var].isel(time=day_idx).values
+            conus_day[var] = apply_pretransform(raw.astype(np.float32), var)
+        static = self._get_static_fields(conus_ds)
 
         conus_stack = np.stack([conus_day[v] for v in self.conus_vars], axis=0)
         era5_input = np.concatenate([era5_regridded, static], axis=0)

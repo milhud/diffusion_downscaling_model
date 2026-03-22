@@ -127,6 +127,8 @@ def main():
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--resume", action="store_true",
                         help="Resume training from latest checkpoint")
+    parser.add_argument("--no-cache", action="store_true",
+                        help="Skip disk cache, regrid on-the-fly (saves disk space)")
     args = parser.parse_args()
 
     plot_path = Path(args.plot_dir)
@@ -149,15 +151,19 @@ def main():
     regridder, conus_lat, conus_lon, land_mask, valid_origins = \
         setup_regridder_and_mask(args.data_dir)
 
+    cache_dir = None if args.no_cache else args.cache_dir
+    # On-the-fly loading needs more workers to hide I/O latency
+    num_workers = 4 if args.no_cache else 2
+
     train_dl, val_dl = build_dataloaders(
         args.data_dir, stats,
         batch_size=TRAIN["batch_size"],
         patches_per_day=TRAIN["patches_per_day"],
-        num_workers=2,  # mmap + JSON NaN skip is fast; 2 workers for prefetch
+        num_workers=num_workers,
         train_years=train_years, val_years=val_years,
         land_mask=land_mask, valid_origins=valid_origins,
         era5_vars=ERA5_VARS, conus_vars=CONUS404_VARS,
-        cache_dir=args.cache_dir,
+        cache_dir=cache_dir,
         regridder=regridder, conus_lat=conus_lat, conus_lon=conus_lon,
     )
     print(f"[Data] Setup done in {time.time()-t0:.0f}s")
