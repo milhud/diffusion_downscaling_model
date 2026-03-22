@@ -60,11 +60,15 @@ def compute_norm_stats(data_dir: str, years: list, cache_path: str = "norm_stats
             for d in sample_days:
                 try:
                     for m in range(12):
+                        # Check first var to see if this month has valid data for this day
+                        test = ds[stats_era5_vars[0]].isel(time=m, valid_time=d).values
+                        if np.all(np.isnan(test)):
+                            continue
+                        # Valid month found — accumulate all vars
                         for var in stats_era5_vars:
                             vals = ds[var].isel(time=m, valid_time=d).values.astype(np.float32)
-                            if not np.all(np.isnan(vals)):
-                                era5_accum[var].append(apply_pretransform(vals.flatten()[::100], var))
-                                break
+                            era5_accum[var].append(apply_pretransform(vals.flatten()[::100], var))
+                        break
                 except (IndexError, ValueError):
                     continue
 

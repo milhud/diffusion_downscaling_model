@@ -189,28 +189,22 @@ class DownscalingDataset(Dataset):
         self.era5_vars = era5_vars or DEFAULT_ERA5_VARS
         self.conus_vars = conus_vars or DEFAULT_CONUS404_VARS
 
-        # Pre-scan for NaN days in CONUS404 (check first conus var)
-        self._nan_days = {}
-        first_conus_var = self.conus_vars[0]
-        print(f"[Data] Scanning {len(years)} years for NaN days...")
-        for y in years:
-            conus_path = self.data_dir / f"conus404_yearly_{y}.nc"
-            bad_days = set()
-            with xr.open_dataset(conus_path) as ds:
-                n_days = ds.sizes.get("time", ds[first_conus_var].shape[0])
-                for d in range(n_days):
-                    vals = ds[first_conus_var].isel(time=d).values
-                    if np.all(np.isnan(vals)):
-                        bad_days.add(d)
-            if bad_days:
-                self._nan_days[y] = bad_days
-                print(f"  {y}: {len(bad_days)} NaN days skipped")
+        # Load pre-computed NaN days (from cached_data/nan_days.json)
+        import json
+        nan_days_path = Path("cached_data/nan_days.json")
+        if nan_days_path.exists():
+            with open(nan_days_path) as f:
+                nan_days = {int(k): set(v) for k, v in json.load(f).items()}
+            print(f"[Data] Loaded NaN days from {nan_days_path}")
+        else:
+            nan_days = {}
+            print("[Data] No nan_days.json found, not skipping any days")
 
         self.index = []
         skipped = 0
         for y in years:
             n_days = 366 if _is_leap(y) else 365
-            bad = self._nan_days.get(y, set())
+            bad = nan_days.get(y, set())
             for d in range(n_days):
                 if d in bad:
                     skipped += 1

@@ -12,12 +12,13 @@ LON_MIN, LON_MAX = -125, -66
 # Only temperature for now — uncomment lines below to add more variables.
 VARIABLE_PAIRS = {
     "t2m": "T2",
-    # "d2m": "TD2",
-    # "u10": "U10",
-    # "v10": "V10",
-    # "sp": "PSFC",
-    # "tp": "PREC_ACC_NC",
-    # "z": "Q2",
+    "d2m": "TD2",
+    "u10": "U10",
+    "v10": "V10",
+    "sp": "PSFC",
+    "tp": "PREC_ACC_NC",
+    # NOTE: "z" (geopotential) has no CONUS404 equivalent — removed.
+    # Q2 (specific humidity) has no direct ERA5 single-level match either.
 }
 
 ERA5_VARS = list(VARIABLE_PAIRS.keys())
