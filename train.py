@@ -125,6 +125,8 @@ def main():
     parser.add_argument("--vae_checkpoint", type=str, default="checkpoints/vae_best.pt")
     parser.add_argument("--cache_dir", type=str, default="cached_data")
     parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume training from latest checkpoint")
     args = parser.parse_args()
 
     plot_path = Path(args.plot_dir)
@@ -185,7 +187,8 @@ def main():
                         plot_dir=args.plot_dir,
                         eval_every=3,
                         num_output_vars=OUT_CH,
-                        precip_channel=-1)
+                        precip_channel=-1,
+                        resume=args.resume)
 
     # ── VAE ──
     if "vae" in stages:
@@ -209,7 +212,8 @@ def main():
                         beta_anneal_frac=TRAIN["vae_beta_anneal_frac"],
                         warmup_epochs=TRAIN["vae_warmup_epochs"],
                         device=args.device,
-                        checkpoint_dir=args.checkpoint_dir)
+                        checkpoint_dir=args.checkpoint_dir,
+                        resume=args.resume)
 
     # ── Diffusion ──
     if "diffusion" in stages:
@@ -250,6 +254,7 @@ def main():
             plot_dir=args.plot_dir,
             eval_every=3,
             latent_ch=LATENT_CH,
+            resume=args.resume,
         )
 
         # Full pipeline eval

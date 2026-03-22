@@ -25,8 +25,13 @@ def train_drn(
     eval_every: int = 3,
     num_output_vars: int = 1,
     precip_channel: int = -1,
+    resume: bool = False,
 ):
-    """Train the DRN (Stage 1) with periodic eval plots."""
+    """Train the DRN (Stage 1) with periodic eval plots.
+
+    Args:
+        resume: If True, load from drn_latest.pt and continue training.
+    """
     model = model.to(device)
     if num_output_vars > 1:
         criterion = PerVariableMSE(num_vars=num_output_vars, precip_channel=precip_channel).to(device)
@@ -53,8 +58,28 @@ def train_drn(
     best_val_loss = float("inf")
     all_train_losses = []
     all_val_losses = []
+    start_epoch = 0
 
-    for epoch in range(epochs):
+    # Resume from checkpoint
+    if resume:
+        ckpt_path = ckpt_dir / "drn_latest.pt"
+        if ckpt_path.exists():
+            ckpt = torch.load(ckpt_path, map_location=device)
+            model.load_state_dict(ckpt["model_state_dict"])
+            optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+            start_epoch = ckpt["epoch"] + 1
+            best_val_loss = ckpt.get("best_val_loss", ckpt.get("val_loss", float("inf")))
+            if "scheduler_state_dict" in ckpt:
+                scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+            if "train_losses" in ckpt:
+                all_train_losses = ckpt["train_losses"]
+            if "val_losses" in ckpt:
+                all_val_losses = ckpt["val_losses"]
+            print(f"[DRN] Resumed from epoch {start_epoch} (best_val={best_val_loss:.6f})")
+        else:
+            print(f"[DRN] No checkpoint at {ckpt_path}, starting from scratch")
+
+    for epoch in range(start_epoch, epochs):
         model.train()
         epoch_loss = 0.0
 
@@ -99,7 +124,11 @@ def train_drn(
                 "epoch": epoch,
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
                 "val_loss": avg_val,
+                "best_val_loss": best_val_loss,
+                "train_losses": all_train_losses,
+                "val_losses": all_val_losses,
             }, ckpt_dir / "drn_best.pt")
 
         # Always save latest (for resuming)
@@ -107,7 +136,11 @@ def train_drn(
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
             "val_loss": avg_val,
+            "best_val_loss": best_val_loss,
+            "train_losses": all_train_losses,
+            "val_losses": all_val_losses,
         }, ckpt_dir / "drn_latest.pt")
 
         # Periodic eval plots

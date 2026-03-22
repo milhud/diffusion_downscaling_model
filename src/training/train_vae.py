@@ -22,11 +22,15 @@ def train_vae(
     device: str = "cuda",
     checkpoint_dir: str = "checkpoints",
     log_interval: int = 50,
+    resume: bool = False,
 ):
     """Train VAE on residuals (CONUS404 - DRN prediction).
 
     DRN runs in eval mode to generate residuals on the fly.
     Beta annealing ramps from 0 to beta_max over beta_anneal_frac of total steps.
+
+    Args:
+        resume: If True, load from vae_latest.pt and continue training.
     """
     vae = vae.to(device)
     drn = drn.to(device).eval()
@@ -49,7 +53,25 @@ def train_vae(
     best_val_loss = float("inf")
 
     global_step = 0
-    for epoch in range(epochs):
+    start_epoch = 0
+
+    # Resume from checkpoint
+    if resume:
+        ckpt_path = ckpt_dir / "vae_latest.pt"
+        if ckpt_path.exists():
+            ckpt = torch.load(ckpt_path, map_location=device)
+            vae.load_state_dict(ckpt["model_state_dict"])
+            optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+            start_epoch = ckpt["epoch"] + 1
+            best_val_loss = ckpt.get("best_val_loss", ckpt.get("val_loss", float("inf")))
+            global_step = ckpt.get("global_step", start_epoch * max(len(train_loader), 1))
+            if "scheduler_state_dict" in ckpt:
+                scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+            print(f"[VAE] Resumed from epoch {start_epoch} (best_val={best_val_loss:.6f})")
+        else:
+            print(f"[VAE] No checkpoint at {ckpt_path}, starting from scratch")
+
+    for epoch in range(start_epoch, epochs):
         vae.train()
         epoch_loss = 0.0
         epoch_recon = 0.0
@@ -111,7 +133,21 @@ def train_vae(
                 "epoch": epoch,
                 "model_state_dict": vae.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
                 "val_loss": avg_val,
+                "best_val_loss": best_val_loss,
+                "global_step": global_step,
             }, ckpt_dir / "vae_best.pt")
+
+        # Always save latest (for resuming)
+        torch.save({
+            "epoch": epoch,
+            "model_state_dict": vae.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "val_loss": avg_val,
+            "best_val_loss": best_val_loss,
+            "global_step": global_step,
+        }, ckpt_dir / "vae_latest.pt")
 
     return vae

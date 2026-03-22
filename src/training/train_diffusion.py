@@ -75,8 +75,13 @@ def train_diffusion(
     log_interval: int = 50,
     eval_every: int = 3,
     latent_ch: int = 4,
+    resume: bool = False,
 ):
-    """Train the conditional diffusion UNet in VAE latent space."""
+    """Train the conditional diffusion UNet in VAE latent space.
+
+    Args:
+        resume: If True, load from diffusion_latest.pt and continue training.
+    """
     diff_model = diff_model.to(device)
     drn = drn.to(device).eval()
     vae = vae.to(device).eval()
@@ -104,11 +109,33 @@ def train_diffusion(
     best_val_loss = float("inf")
     all_train_losses = []
     all_val_losses = []
+    start_epoch = 0
+
+    # Resume from checkpoint
+    if resume:
+        ckpt_path = ckpt_dir / "diffusion_latest.pt"
+        if ckpt_path.exists():
+            ckpt = torch.load(ckpt_path, map_location=device)
+            diff_model.load_state_dict(ckpt["model_state_dict"])
+            optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+            if "ema_state_dict" in ckpt:
+                ema.load_state_dict(ckpt["ema_state_dict"])
+            start_epoch = ckpt["epoch"] + 1
+            best_val_loss = ckpt.get("best_val_loss", ckpt.get("val_loss", float("inf")))
+            if "scheduler_state_dict" in ckpt:
+                scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+            if "train_losses" in ckpt:
+                all_train_losses = ckpt["train_losses"]
+            if "val_losses" in ckpt:
+                all_val_losses = ckpt["val_losses"]
+            print(f"[Diff] Resumed from epoch {start_epoch} (best_val={best_val_loss:.6f})")
+        else:
+            print(f"[Diff] No checkpoint at {ckpt_path}, starting from scratch")
 
     # Grab fixed eval batch
     eval_era5, eval_conus = next(iter(val_loader))
 
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
         diff_model.train()
         epoch_loss = 0.0
 
@@ -170,7 +197,11 @@ def train_diffusion(
                 "model_state_dict": diff_model.state_dict(),
                 "ema_state_dict": ema.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
                 "val_loss": avg_val,
+                "best_val_loss": best_val_loss,
+                "train_losses": all_train_losses,
+                "val_losses": all_val_losses,
             }, ckpt_dir / "diffusion_best.pt")
 
         # Always save latest (for resuming)
@@ -179,7 +210,11 @@ def train_diffusion(
             "model_state_dict": diff_model.state_dict(),
             "ema_state_dict": ema.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
             "val_loss": avg_val,
+            "best_val_loss": best_val_loss,
+            "train_losses": all_train_losses,
+            "val_losses": all_val_losses,
         }, ckpt_dir / "diffusion_latest.pt")
 
         # Periodic eval plots

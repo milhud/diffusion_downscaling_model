@@ -2,6 +2,7 @@
 
 import torch
 import torch.nn.functional as F
+from config import IN_CH, LATENT_CH
 from ..models.drn import DRN
 from ..models.vae import VAE
 from ..models.diffusion_unet import DiffusionUNet
@@ -30,7 +31,7 @@ def run_pipeline(
     """Run the full two-stage downscaling pipeline.
 
     Args:
-        era5_input: (B, 13, H, W) — normalized ERA5 + static fields
+        era5_input: (B, IN_CH, H, W) — normalized ERA5 + static fields
         drn: trained DRN model
         vae: trained VAE model
         diff_model: trained diffusion UNet
@@ -40,8 +41,8 @@ def run_pipeline(
         num_samples: number of diffusion ensemble members per input
 
     Returns:
-        drn_pred: (B, 7, H, W) — DRN deterministic prediction
-        samples: (B, num_samples, 7, H, W) — diffusion ensemble predictions
+        drn_pred: (B, OUT_CH, H, W) — DRN deterministic prediction
+        samples: (B, num_samples, OUT_CH, H, W) — diffusion ensemble predictions
     """
     if schedule is None:
         schedule = EDMSchedule()
@@ -50,26 +51,26 @@ def run_pipeline(
     era5_input = era5_input.to(device)
 
     # Stage 1: DRN prediction
-    drn_pred = drn(era5_input)  # (B, 7, H, W)
+    drn_pred = drn(era5_input)
 
     # Build diffusion conditioning
     latent_h, latent_w = 64, 64
-    era5_down = F.interpolate(era5_input[:, :7], (latent_h, latent_w), mode="bilinear", align_corners=False)
+    era5_down = F.interpolate(era5_input[:, :IN_CH], (latent_h, latent_w), mode="bilinear", align_corners=False)
     mu_drn, _ = vae.encode(drn_pred)
     pos = _make_pos_embedding(latent_h, latent_w, device).unsqueeze(0).expand(B, -1, -1, -1)
-    cond = torch.cat([era5_down, mu_drn, pos], dim=1)  # (B, 17, 64, 64)
+    cond = torch.cat([era5_down, mu_drn, pos], dim=1)
 
     all_samples = []
     for _ in range(num_samples):
         # Stage 2: Sample residual in latent space
         z_sample = heun_sampler(
             diff_model, schedule, cond,
-            shape=(B, 8, latent_h, latent_w),
+            shape=(B, LATENT_CH, latent_h, latent_w),
             num_steps=num_steps,
             guidance_scale=guidance_scale,
         )
         # Decode latent to residual
-        r_sample = vae.decode(z_sample)  # (B, 7, 256, 256)
+        r_sample = vae.decode(z_sample)
         # Final prediction = DRN mean + sampled residual
         final = drn_pred + r_sample
         all_samples.append(final)

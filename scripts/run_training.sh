@@ -23,6 +23,8 @@
 # Usage:
 #   sbatch run_training.sh              # train all stages sequentially
 #   sbatch run_training.sh --stage drn  # train DRN only
+#   sbatch run_training.sh --resume     # resume from latest checkpoint
+#   sbatch run_training.sh --stage diffusion --resume  # resume diffusion only
 # ──────────────────────────────────────────────────────────────────────
 
 cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model

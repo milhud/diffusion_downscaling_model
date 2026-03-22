@@ -549,7 +549,7 @@ def sanity_check(device="cuda", plot_dir="sanity_plots"):
     ens_np = ensemble[:, 0, 0].cpu().numpy()  # (M, H, W)
 
     # CRPS
-    crps = crps_ensemble(target.flatten(), ens_np.reshape(NUM_ENSEMBLE, -1).T)
+    crps = crps_ensemble(target.flatten(), ens_np.reshape(NUM_ENSEMBLE, -1))
     assert np.isfinite(crps), f"CRPS is non-finite: {crps}"
     print(f"    CRPS: {crps:.4f}")
 
@@ -570,8 +570,8 @@ def sanity_check(device="cuda", plot_dir="sanity_plots"):
 
     # Rank histogram
     sub_tgt = target[::8, ::8].flatten()
-    sub_ens = ens_np[:, ::8, ::8].reshape(NUM_ENSEMBLE, -1).T
-    rh = rank_histogram(sub_ens.T, sub_tgt, num_bins=NUM_ENSEMBLE + 1)
+    sub_ens = ens_np[:, ::8, ::8].reshape(NUM_ENSEMBLE, -1)
+    rh = rank_histogram(sub_ens, sub_tgt, num_bins=NUM_ENSEMBLE + 1)
     assert len(rh) == NUM_ENSEMBLE + 1
     assert rh.sum() > 0
     print(f"    Rank hist: {rh}")
@@ -670,14 +670,15 @@ def sanity_check(device="cuda", plot_dir="sanity_plots"):
     # ═══════════════════════════════════════════════════════════════════════
     print("\n[TEST 10] Compute benchmark (latent vs pixel forward pass)...")
 
-    # Latent forward pass timing
-    dummy_z = torch.randn(1, DIFF_IN_CH, 64, 64, device=device)
+    # Latent forward pass timing — forward(z_noisy, sigma, cond)
+    dummy_z_noisy = torch.randn(1, LATENT_CH, 64, 64, device=device)
+    dummy_cond = torch.randn(1, DIFF_IN_CH - LATENT_CH, 64, 64, device=device)
     dummy_t = torch.tensor([1.0], device=device)
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     for _ in range(10):
         with torch.no_grad():
-            diff_model(dummy_z, dummy_t)
+            diff_model(dummy_z_noisy, dummy_t, dummy_cond)
     torch.cuda.synchronize()
     latent_ms = (time.perf_counter() - t0) / 10 * 1000
 
@@ -688,12 +689,13 @@ def sanity_check(device="cuda", plot_dir="sanity_plots"):
         ch_mults=(1, 2, 2, 4), num_res_blocks=2,
         attn_resolutions=(2, 3), time_dim=256, dropout=0.0,
     ).to(device).eval()
-    dummy_px = torch.randn(1, pixel_diff_in_ch, 256, 256, device=device)
+    dummy_px_noisy = torch.randn(1, OUT_CH, 256, 256, device=device)
+    dummy_px_cond = torch.randn(1, pixel_diff_in_ch - OUT_CH, 256, 256, device=device)
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     for _ in range(10):
         with torch.no_grad():
-            pixel_diff(dummy_px, dummy_t)
+            pixel_diff(dummy_px_noisy, dummy_t, dummy_px_cond)
     torch.cuda.synchronize()
     pixel_ms = (time.perf_counter() - t0) / 10 * 1000
 
@@ -705,11 +707,11 @@ def sanity_check(device="cuda", plot_dir="sanity_plots"):
     # Memory
     torch.cuda.reset_peak_memory_stats()
     with torch.no_grad():
-        diff_model(dummy_z, dummy_t)
+        diff_model(dummy_z_noisy, dummy_t, dummy_cond)
     latent_mem = torch.cuda.max_memory_allocated() / 1e9
     torch.cuda.reset_peak_memory_stats()
     with torch.no_grad():
-        pixel_diff(dummy_px, dummy_t)
+        pixel_diff(dummy_px_noisy, dummy_t, dummy_px_cond)
     pixel_mem = torch.cuda.max_memory_allocated() / 1e9
     print(f"    Latent mem: {latent_mem:.2f} GB, Pixel mem: {pixel_mem:.2f} GB")
 

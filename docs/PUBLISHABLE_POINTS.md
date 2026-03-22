@@ -196,7 +196,17 @@ python train.py --stage all --data_dir data --cache_dir cached_data
 python train.py --stage drn        # Stage 1: ~1h
 python train.py --stage vae        # Stage 2a: ~2h
 python train.py --stage diffusion  # Stage 2b: ~8h+
+
+# Resume from latest checkpoint (e.g., after SLURM walltime):
+python train.py --stage diffusion --resume
+
+# Via SLURM:
+sbatch scripts/run_training.sh --stage diffusion --resume
 ```
+
+The `--resume` flag loads model weights, optimizer state, LR scheduler, EMA
+weights (diffusion), and loss history from `*_latest.pt` checkpoints, then
+continues training from the next epoch.
 
 ### Inference
 ```bash
