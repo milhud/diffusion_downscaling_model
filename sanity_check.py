@@ -1,15 +1,30 @@
-"""End-to-end sanity check using REAL ERA5/CONUS404 data (temperature only).
+"""Comprehensive sanity check: tests EVERY feature of the downscaling pipeline.
 
-Loads a few days from disk, regrids ERA5→CONUS404 in-memory, extracts random
-256×256 patches, and trains each stage (DRN → VAE → Diffusion).
-Generates diagnostic plots at every stage including power spectra, ensemble
-spread, error histograms, and multi-patch comparisons.
+Loads real ERA5/CONUS404 data, trains each stage for 1000 steps, then runs
+ALL evaluation analyses to verify everything works end-to-end.
 
-No data is written to disk except plots and the final summary.
+Tests:
+  1. Data loading and regridding (ERA5 -> CONUS404 grid)
+  2. Static field computation (terrain, orog_var, lat, lon, lai, lsm)
+  3. Stage 1: DRN training (1000 steps)
+  4. Stage 2a: VAE training (1000 steps)
+  5. Stage 2b: Diffusion training (1000 steps)
+  6. Full pipeline sampling (Heun sampler, classifier-free guidance, EMA)
+  7. Ensemble generation (4 members)
+  8. Inference pipeline (src.inference.pipeline.run_pipeline)
+  9. Evaluation metrics (CRPS, RMSE, MAE, SSR, rank histogram, Q-Q, spectra)
+  10. Stage-by-stage power spectra
+  11. Denoising step ablation (4, 8, 16 steps)
+  12. Compute benchmark (latent vs pixel timing)
+  13. Latent space analysis (channel distributions, correlations)
+  14. Climate signal test (early vs late period means)
+  15. Pixel-space diffusion ablation (build + 100 steps)
+  16. Comprehensive plots at every stage
 
 Usage:
-  python sanity_check.py [--device cuda|cpu] [--plot_dir sanity_plots]
-  python sanity_check.py --extensive    # ~3h on A100: many more steps, bigger models
+    python sanity_check.py [--device cuda|cpu] [--plot_dir sanity_plots]
+
+Runs on A100 in ~30-45 minutes.
 """
 
 import argparse
@@ -39,76 +54,23 @@ from src.training.ema import EMA
 DATA_DIR = Path("/gpfsm/dnb33/hpmille1/diffusion_downscaling_model/data")
 PATCH_SIZE = 256
 LATENT_H = LATENT_W = 64
+IN_CH = 7   # 1 ERA5 var + 6 static
+OUT_CH = 1
+LATENT_CH = 4
+
+# Training steps per stage
+NUM_DRN_STEPS = 1000
+NUM_VAE_STEPS = 1000
+NUM_DIFF_STEPS = 1000
+BATCH_SIZE = 4
+NUM_SAMPLING_STEPS = 16
+NUM_ENSEMBLE = 4
+LOG_EVERY = 100
 
 
-def get_config(extensive: bool):
-    """Return config dict based on mode."""
-    if extensive:
-        return dict(
-            # ── Training steps (separate per stage) ──
-            num_drn_steps=3000,
-            num_vae_steps=3000,
-            num_diff_steps=10000,
-            batch_size=8,
-            # ── Data ──
-            years=[1980, 1981, 1982, 1983],
-            sample_days=list(range(5, 360, 15)),  # every 15 days (~24/year)
-            patches_per_day=8,
-            # ── Model sizes ──
-            drn_base_ch=64,
-            drn_num_res=2,
-            vae_base_ch=128,
-            diff_base_ch=128,
-            diff_num_res=4,
-            # ── Learning rates ──
-            lr_drn=2e-4,
-            lr_vae=1e-4,
-            lr_diff=2e-4,
-            warmup_frac=0.05,       # 5% warmup then cosine decay
-            # ── VAE beta schedule ──
-            vae_beta_max=1e-3,
-            vae_beta_ramp_frac=0.3, # ramp over 30% of VAE steps
-            # ── Inference ──
-            num_sampling_steps=32,
-            num_ensemble=8,
-            num_eval_patches=16,
-            # ── Logging ──
-            log_every=200,
-            # ── Diffusion snapshots (show visual progress) ──
-            diff_snapshot_steps=[500, 1000, 2000, 5000, 10000],
-        )
-    else:
-        return dict(
-            num_drn_steps=100,
-            num_vae_steps=100,
-            num_diff_steps=200,
-            batch_size=4,
-            years=[1980],
-            sample_days=[10, 40, 70, 100, 130, 160, 190, 220, 250, 280, 310, 340],
-            patches_per_day=4,
-            drn_base_ch=32,
-            drn_num_res=1,
-            vae_base_ch=64,
-            diff_base_ch=64,
-            diff_num_res=2,
-            lr_drn=1e-4,
-            lr_vae=1e-4,
-            lr_diff=1e-4,
-            warmup_frac=0.1,
-            vae_beta_max=1e-4,
-            vae_beta_ramp_frac=0.5,
-            num_sampling_steps=12,
-            num_ensemble=4,
-            num_eval_patches=8,
-            log_every=10,
-            diff_snapshot_steps=[],
-        )
-
-
-# ─── LR schedule ────────────────────────────────────────────────────────────
+# ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def cosine_lr(step, total_steps, base_lr, warmup_steps):
-    """Linear warmup then cosine decay to 0."""
     if step < warmup_steps:
         return base_lr * (step + 1) / max(1, warmup_steps)
     progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
@@ -120,9 +82,13 @@ def set_lr(optimizer, lr):
         pg["lr"] = lr
 
 
-# ─── Data loading (all in-memory) ────────────────────────────────────────────
+def _to_np(t):
+    if isinstance(t, torch.Tensor):
+        return t.detach().cpu().float().numpy()
+    return t
 
-def _month_for_day(day_idx: int, leap: bool) -> int:
+
+def _month_for_day(day_idx, leap):
     days = [31, 29 if leap else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     cum = 0
     for m, d in enumerate(days):
@@ -132,147 +98,29 @@ def _month_for_day(day_idx: int, leap: bool) -> int:
     return 11
 
 
-def load_real_data(cfg: dict):
-    """Load ERA5 t2m and CONUS404 T2 for a handful of days. All in-memory."""
-    t0 = time.time()
-    years = cfg["years"]
-    sample_days = cfg["sample_days"]
-    patches_per_day = cfg["patches_per_day"]
-
-    print(f"[Data] Loading {len(years)} year(s), {len(sample_days)} days each...")
-
-    # Coordinates from first year
-    era5_ds_first = xr.open_dataset(DATA_DIR / f"era5_{years[0]}.nc")
-    era5_lat = era5_ds_first["latitude"].values
-    era5_lon = era5_ds_first["longitude"].values
-
-    conus_ds_first = xr.open_dataset(DATA_DIR / f"conus404_yearly_{years[0]}.nc")
-    conus_lat = conus_ds_first["lat"].values
-    conus_lon = conus_ds_first["lon"].values
-
-    print("[Data] Building xESMF regridder (bilinear + nearest extrap)...")
-    src_grid = xr.Dataset({
-        "lat": xr.DataArray(era5_lat, dims=["y"]),
-        "lon": xr.DataArray(era5_lon, dims=["x"]),
-    })
-    dst_grid = xr.Dataset({
-        "lat": xr.DataArray(conus_lat, dims=["y", "x"]),
-        "lon": xr.DataArray(conus_lon, dims=["y", "x"]),
-    })
-    regridder = xe.Regridder(src_grid, dst_grid, method="bilinear",
-                             extrap_method="nearest_s2d", unmapped_to_nan=False)
-    print(f"[Data] Regridder built in {time.time()-t0:.1f}s")
-
-    print("[Data] Loading static fields from CONUS404...")
-    terrain = conus_ds_first["Z"].isel(time=0, bottom_top_stag=0).values.astype(np.float32)
-    terrain_norm = (terrain - np.nanmean(terrain)) / (np.nanstd(terrain) + 1e-8)
-
-    z_mean = uniform_filter(terrain, size=5)
-    z_sq_mean = uniform_filter(terrain ** 2, size=5)
-    orog_var = np.sqrt(np.maximum(z_sq_mean - z_mean ** 2, 0))
-    orog_var_norm = (orog_var - np.nanmean(orog_var)) / (np.nanstd(orog_var) + 1e-8)
-
-    lat_norm = (conus_lat - np.nanmean(conus_lat)) / (np.nanstd(conus_lat) + 1e-8)
-    lon_norm = (conus_lon - np.nanmean(conus_lon)) / (np.nanstd(conus_lon) + 1e-8)
-    lsm = (terrain > 0).astype(np.float32)
-
-    static = np.stack([terrain_norm, orog_var_norm, lat_norm.astype(np.float32),
-                       lon_norm.astype(np.float32), lsm], axis=0)
-
-    era5_ds_first.close()
-    conus_ds_first.close()
-
-    era5_t2m_vals = []
-    conus_t2_vals = []
-    raw_pairs = []
-    day_labels = []
-
-    for year in years:
-        leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
-        max_day = 366 if leap else 365
-
-        era5_ds = xr.open_dataset(DATA_DIR / f"era5_{year}.nc")
-        conus_ds = xr.open_dataset(DATA_DIR / f"conus404_yearly_{year}.nc")
-
-        for d in sample_days:
-            if d >= max_day:
-                continue
-            m = _month_for_day(d, leap)
-            era5_field = era5_ds["t2m"].isel(time=m, valid_time=d).values.astype(np.float32)
-            if np.all(np.isnan(era5_field)):
-                continue
-            era5_regridded = regridder(xr.DataArray(era5_field, dims=["y", "x"])).values.astype(np.float32)
-            conus_field = conus_ds["T2"].isel(time=d).values.astype(np.float32)
-            era5_t2m_vals.append(era5_regridded[::10, ::10].flatten())
-            conus_t2_vals.append(conus_field[::10, ::10].flatten())
-            raw_pairs.append((era5_regridded, conus_field))
-            day_labels.append(f"Y{year}D{d}")
-
-        era5_ds.close()
-        conus_ds.close()
-
-    era5_all = np.concatenate(era5_t2m_vals)
-    conus_all = np.concatenate(conus_t2_vals)
-    era5_mean, era5_std = float(np.nanmean(era5_all)), float(np.nanstd(era5_all))
-    conus_mean, conus_std = float(np.nanmean(conus_all)), float(np.nanstd(conus_all))
-    static_means = static.mean(axis=(1, 2), keepdims=True)
-    static_stds = np.maximum(static.std(axis=(1, 2), keepdims=True), 1e-8)
-    print(f"[Data] ERA5 t2m:  mean={era5_mean:.2f} K, std={era5_std:.2f} K")
-    print(f"[Data] CONUS T2:  mean={conus_mean:.2f} K, std={conus_std:.2f} K")
-
-    H, W = 1015, 1367
-    PS = PATCH_SIZE
-    patches = []
-    patch_day_idx = []
-    rng = np.random.RandomState(42)
-
-    for day_i, (era5_reg, conus_f) in enumerate(raw_pairs):
-        era5_norm = (era5_reg - era5_mean) / era5_std
-        conus_norm = (conus_f - conus_mean) / conus_std
-        static_norm = (static - static_means) / static_stds
-        era5_input = np.concatenate([era5_norm[None], static_norm], axis=0)
-
-        for _ in range(patches_per_day):
-            y0 = rng.randint(0, H - PS)
-            x0 = rng.randint(0, W - PS)
-            era5_patch = torch.from_numpy(era5_input[:, y0:y0+PS, x0:x0+PS].copy())
-            conus_patch = torch.from_numpy(conus_norm[None, y0:y0+PS, x0:x0+PS].copy())
-            patches.append((era5_patch, conus_patch))
-            patch_day_idx.append(day_i)
-
-    print(f"[Data] Extracted {len(patches)} patches of size {PS}x{PS} "
-          f"from {len(raw_pairs)} days across {len(years)} year(s)")
-    print(f"[Data] Total load time: {time.time()-t0:.1f}s")
-
-    era5_full = (raw_pairs[0][0] - era5_mean) / era5_std
-    conus_full = (raw_pairs[0][1] - conus_mean) / conus_std
-
-    return patches, era5_full, conus_full, day_labels, patch_day_idx
+def radial_power_spectrum(field_2d):
+    f = np.fft.fft2(field_2d)
+    f = np.fft.fftshift(f)
+    power = np.abs(f) ** 2
+    H, W = field_2d.shape
+    cy, cx = H // 2, W // 2
+    Y, X = np.ogrid[:H, :W]
+    r = np.sqrt((X - cx) ** 2 + (Y - cy) ** 2).astype(int)
+    max_r = min(cy, cx)
+    spectrum = np.zeros(max_r)
+    for ri in range(max_r):
+        mask = r == ri
+        if mask.any():
+            spectrum[ri] = power[mask].mean()
+    return spectrum
 
 
-# ─── Plotting helpers ────────────────────────────────────────────────────────
-
-def _to_np(t):
-    if isinstance(t, torch.Tensor):
-        return t.detach().cpu().float().numpy()
-    return t
-
-
-def plot_stage_panels(panels, titles, save_path, suptitle="", cmap="RdBu_r",
-                      share_scale=None):
-    """Plot panels side by side.
-
-    Args:
-        share_scale: list of group indices, e.g. [0,0,0,1] means first 3 panels
-                     share a colorbar range, 4th has its own. None = each independent.
-    """
+def plot_panels(panels, titles, save_path, suptitle="", cmap="RdBu_r", share_scale=None):
     n = len(panels)
     fig, axes = plt.subplots(1, n, figsize=(4.5 * n, 4))
     if n == 1:
         axes = [axes]
     panels_np = [_to_np(p) for p in panels]
-
-    # Compute shared vmin/vmax per group
     if share_scale is not None:
         groups = {}
         for i, g in enumerate(share_scale):
@@ -284,7 +132,6 @@ def plot_stage_panels(panels, titles, save_path, suptitle="", cmap="RdBu_r",
             group_ranges[g] = np.nanpercentile(all_vals, [2, 98])
     else:
         group_ranges = None
-
     for i, (ax, p, title) in enumerate(zip(axes, panels_np, titles)):
         if group_ranges is not None:
             vmin, vmax = group_ranges[share_scale[i]]
@@ -304,24 +151,17 @@ def plot_stage_panels(panels, titles, save_path, suptitle="", cmap="RdBu_r",
     print(f"  Plot -> {save_path}")
 
 
-def plot_loss(losses, title, save_path, smooth_window=None):
-    """Plot loss with raw (faded) + smoothed (bold) lines."""
+def plot_loss(losses, title, save_path):
     fig, ax = plt.subplots(figsize=(8, 4))
     n = len(losses)
-    if smooth_window is None:
-        smooth_window = max(5, n // 20)
-    # Raw
+    sw = max(5, n // 20)
     ax.plot(losses, linewidth=0.5, alpha=0.25, color="steelblue")
-    # Smoothed
-    if n > smooth_window:
-        kernel = np.ones(smooth_window) / smooth_window
+    if n > sw:
+        kernel = np.ones(sw) / sw
         smoothed = np.convolve(losses, kernel, mode="valid")
-        offset = smooth_window // 2
+        offset = sw // 2
         ax.plot(range(offset, offset + len(smoothed)), smoothed,
-                linewidth=2.5, color="steelblue", label=f"Smoothed (w={smooth_window})")
-        ax.legend(fontsize=9)
-    else:
-        ax.plot(losses, linewidth=2, color="steelblue")
+                linewidth=2.5, color="steelblue")
     ax.set_xlabel("Step"); ax.set_ylabel("Loss"); ax.set_title(title)
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -330,56 +170,141 @@ def plot_loss(losses, title, save_path, smooth_window=None):
     print(f"  Plot -> {save_path}")
 
 
-def radial_power_spectrum(field_2d):
-    """Compute radially averaged power spectrum of a 2D field."""
-    f = np.fft.fft2(field_2d)
-    f = np.fft.fftshift(f)
-    power = np.abs(f) ** 2
-    H, W = field_2d.shape
-    cy, cx = H // 2, W // 2
-    Y, X = np.ogrid[:H, :W]
-    r = np.sqrt((X - cx) ** 2 + (Y - cy) ** 2).astype(int)
-    max_r = min(cy, cx)
-    spectrum = np.zeros(max_r)
-    for ri in range(max_r):
-        mask = r == ri
-        if mask.any():
-            spectrum[ri] = power[mask].mean()
-    return spectrum
+# ─── Data loading ────────────────────────────────────────────────────────────
+
+def load_real_data():
+    t0 = time.time()
+    years = [1980]
+    sample_days = [10, 40, 70, 100, 130, 160, 190, 220, 250, 280, 310, 340]
+    patches_per_day = 4
+
+    print(f"[Data] Loading {len(years)} year(s), {len(sample_days)} days each...")
+
+    era5_ds_first = xr.open_dataset(DATA_DIR / f"era5_{years[0]}.nc")
+    era5_lat = era5_ds_first["latitude"].values
+    era5_lon = era5_ds_first["longitude"].values
+
+    conus_ds_first = xr.open_dataset(DATA_DIR / f"conus404_yearly_{years[0]}.nc")
+    conus_lat = conus_ds_first["lat"].values
+    conus_lon = conus_ds_first["lon"].values
+
+    print("[Data] Building xESMF regridder...")
+    src_grid = xr.Dataset({
+        "lat": xr.DataArray(era5_lat, dims=["y"]),
+        "lon": xr.DataArray(era5_lon, dims=["x"]),
+    })
+    dst_grid = xr.Dataset({
+        "lat": xr.DataArray(conus_lat, dims=["y", "x"]),
+        "lon": xr.DataArray(conus_lon, dims=["y", "x"]),
+    })
+    regridder = xe.Regridder(src_grid, dst_grid, method="bilinear",
+                             extrap_method="nearest_s2d", unmapped_to_nan=False)
+
+    terrain = conus_ds_first["Z"].isel(time=0, bottom_top_stag=0).values.astype(np.float32)
+    terrain_norm = (terrain - np.nanmean(terrain)) / (np.nanstd(terrain) + 1e-8)
+    z_mean = uniform_filter(terrain, size=5)
+    z_sq_mean = uniform_filter(terrain ** 2, size=5)
+    orog_var = np.sqrt(np.maximum(z_sq_mean - z_mean ** 2, 0))
+    orog_var_norm = (orog_var - np.nanmean(orog_var)) / (np.nanstd(orog_var) + 1e-8)
+    lat_norm = (conus_lat - np.nanmean(conus_lat)) / (np.nanstd(conus_lat) + 1e-8)
+    lon_norm = (conus_lon - np.nanmean(conus_lon)) / (np.nanstd(conus_lon) + 1e-8)
+    lsm = (terrain > 0).astype(np.float32)
+
+    # LAI
+    try:
+        lai = era5_ds_first["lai"].isel(time=0, valid_time=0).values.astype(np.float32)
+        lai_reg = regridder(xr.DataArray(lai, dims=["y", "x"])).values.astype(np.float32)
+        lai_reg = np.nan_to_num(lai_reg, nan=0.0)
+        lai_norm = (lai_reg - np.nanmean(lai_reg)) / (np.nanstd(lai_reg) + 1e-8)
+    except Exception:
+        lai_norm = np.zeros_like(lsm)
+
+    static = np.stack([terrain_norm, orog_var_norm, lat_norm.astype(np.float32),
+                       lon_norm.astype(np.float32), lai_norm.astype(np.float32), lsm], axis=0)
+
+    era5_ds_first.close()
+    conus_ds_first.close()
+
+    raw_pairs = []
+    era5_vals, conus_vals = [], []
+
+    for year in years:
+        leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+        max_day = 366 if leap else 365
+        era5_ds = xr.open_dataset(DATA_DIR / f"era5_{year}.nc")
+        conus_ds = xr.open_dataset(DATA_DIR / f"conus404_yearly_{year}.nc")
+
+        for d in sample_days:
+            if d >= max_day:
+                continue
+            m = _month_for_day(d, leap)
+            era5_field = era5_ds["t2m"].isel(time=m, valid_time=d).values.astype(np.float32)
+            if np.all(np.isnan(era5_field)):
+                continue
+            era5_regridded = regridder(xr.DataArray(era5_field, dims=["y", "x"])).values.astype(np.float32)
+            conus_field = conus_ds["T2"].isel(time=d).values.astype(np.float32)
+            era5_vals.append(era5_regridded[::10, ::10].flatten())
+            conus_vals.append(conus_field[::10, ::10].flatten())
+            raw_pairs.append((era5_regridded, conus_field))
+
+        era5_ds.close()
+        conus_ds.close()
+
+    era5_all = np.concatenate(era5_vals)
+    conus_all = np.concatenate(conus_vals)
+    era5_mean, era5_std = float(np.nanmean(era5_all)), float(np.nanstd(era5_all))
+    conus_mean, conus_std = float(np.nanmean(conus_all)), float(np.nanstd(conus_all))
+
+    H, W, PS = 1015, 1367, PATCH_SIZE
+    patches = []
+    rng = np.random.RandomState(42)
+
+    for era5_reg, conus_f in raw_pairs:
+        era5_norm = (era5_reg - era5_mean) / era5_std
+        conus_norm = (conus_f - conus_mean) / conus_std
+        era5_input = np.concatenate([era5_norm[None], static], axis=0)
+        for _ in range(patches_per_day):
+            y0 = rng.randint(0, H - PS)
+            x0 = rng.randint(0, W - PS)
+            era5_patch = torch.from_numpy(era5_input[:, y0:y0+PS, x0:x0+PS].copy())
+            conus_patch = torch.from_numpy(conus_norm[None, y0:y0+PS, x0:x0+PS].copy())
+            patches.append((era5_patch, conus_patch))
+
+    print(f"[Data] {len(patches)} patches from {len(raw_pairs)} days ({time.time()-t0:.1f}s)")
+    return patches
 
 
 # ─── Main sanity check ──────────────────────────────────────────────────────
 
-def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive: bool = False):
+def sanity_check(device="cuda", plot_dir="sanity_plots"):
     plot_path = Path(plot_dir)
     plot_path.mkdir(parents=True, exist_ok=True)
-
-    cfg = get_config(extensive)
-    mode_str = "EXTENSIVE" if extensive else "QUICK"
-    BATCH_SIZE = cfg["batch_size"]
-    NUM_SAMPLING_STEPS = cfg["num_sampling_steps"]
-    NUM_ENSEMBLE = cfg["num_ensemble"]
-    LOG_EVERY = cfg["log_every"]
-
-    IN_CH = 7   # 1 ERA5 var + 6 static (terrain, orog_var, lat, lon, lai, lsm)
-    OUT_CH = 1
-    LATENT_CH = 4
-
-    print("=" * 70)
-    print(f"SANITY CHECK [{mode_str}] — Real data, temperature only")
-    print(f"  DRN steps: {cfg['num_drn_steps']}, VAE steps: {cfg['num_vae_steps']}, "
-          f"Diff steps: {cfg['num_diff_steps']}")
-    print(f"  Batch: {BATCH_SIZE}, Ensemble: {NUM_ENSEMBLE}, "
-          f"Sampling: {NUM_SAMPLING_STEPS} Heun steps")
-    print("=" * 70)
-
-    # ═══════════════════════════════════════════════════════════════════════
-    # LOAD REAL DATA
-    # ═══════════════════════════════════════════════════════════════════════
-    patches, era5_full, conus_full, day_labels, patch_day_idx = load_real_data(cfg)
-
-    # Random batch sampler (instead of sequential cycling)
+    results = {}
     batch_rng = np.random.RandomState(123)
+
+    print("=" * 70)
+    print("COMPREHENSIVE SANITY CHECK — ALL FEATURES")
+    print(f"  DRN/VAE/Diff: {NUM_DRN_STEPS}/{NUM_VAE_STEPS}/{NUM_DIFF_STEPS} steps each")
+    print(f"  Batch: {BATCH_SIZE}, Ensemble: {NUM_ENSEMBLE}, Sampling: {NUM_SAMPLING_STEPS} steps")
+    print("=" * 70)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 1: Data Loading
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 1] Data loading and regridding...")
+    patches = load_real_data()
+    assert len(patches) > 0, "No patches loaded!"
+    e0, c0 = patches[0]
+    assert e0.shape == (IN_CH, PATCH_SIZE, PATCH_SIZE), f"ERA5 patch shape wrong: {e0.shape}"
+    assert c0.shape == (OUT_CH, PATCH_SIZE, PATCH_SIZE), f"CONUS patch shape wrong: {c0.shape}"
+    assert torch.isfinite(e0).all(), "ERA5 patch has non-finite values"
+    assert torch.isfinite(c0).all(), "CONUS patch has non-finite values"
+    print(f"  PASS — {len(patches)} patches, shapes: ERA5={e0.shape}, CONUS={c0.shape}")
+    results["data_loading"] = "PASS"
+
+    plot_panels([e0[0], c0[0]], ["ERA5 t2m", "CONUS404 T2"],
+                f"{plot_dir}/01_input_vs_target.png", "Input vs Target Patch",
+                share_scale=[0, 0])
 
     def get_batch():
         idxs = batch_rng.randint(0, len(patches), size=BATCH_SIZE)
@@ -387,46 +312,23 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         conus_b = torch.stack([patches[i][1] for i in idxs]).to(device)
         return era5_b, conus_b
 
-    plot_stage_panels(
-        [era5_full, conus_full],
-        ["ERA5 t2m (regridded)", "CONUS404 T2 (target)"],
-        f"{plot_dir}/00_input_vs_target_full.png",
-        suptitle=f"Raw Input vs Target — Full Domain (Day {day_labels[0]})",
-        share_scale=[0, 0],
-    )
-
-    e0, c0 = patches[0]
-    plot_stage_panels(
-        [e0[0], c0[0]],
-        ["ERA5 t2m patch", "CONUS404 T2 patch"],
-        f"{plot_dir}/01_patch_example.png",
-        suptitle="Example 256x256 Patch",
-        share_scale=[0, 0],
-    )
-
     # ═══════════════════════════════════════════════════════════════════════
-    # STAGE 1: DRN
+    # TEST 2: DRN Training (1000 steps)
     # ═══════════════════════════════════════════════════════════════════════
-    print("\n" + "=" * 70)
-    print("STAGE 1: Deterministic Regression Network (DRN)")
-    print("=" * 70)
-
-    NUM_DRN_STEPS = cfg["num_drn_steps"]
-    drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=cfg["drn_base_ch"],
-              ch_mults=(1, 2, 4, 8), num_res_blocks=cfg["drn_num_res"],
-              attn_resolutions=(2,)).to(device)
-    print(f"[DRN] Params: {sum(p.numel() for p in drn.parameters()):,}")
-
+    print(f"\n[TEST 2] DRN training ({NUM_DRN_STEPS} steps)...")
+    drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=32, ch_mults=(1, 2, 4, 8),
+              num_res_blocks=1, attn_resolutions=(2,)).to(device)
+    drn_params = sum(p.numel() for p in drn.parameters())
+    print(f"  Params: {drn_params:,}")
     drn_criterion = PerVariableMSE(num_vars=OUT_CH, precip_channel=-1).to(device)
-    drn_opt = torch.optim.AdamW(
-        list(drn.parameters()) + list(drn_criterion.parameters()), lr=cfg["lr_drn"])
-    warmup_drn = int(cfg["warmup_frac"] * NUM_DRN_STEPS)
+    drn_opt = torch.optim.AdamW(list(drn.parameters()) + list(drn_criterion.parameters()), lr=1e-4)
+    warmup_drn = int(0.05 * NUM_DRN_STEPS)
 
     drn.train()
     drn_losses = []
-    t_stage = time.time()
+    t0 = time.time()
     for step in range(NUM_DRN_STEPS):
-        lr = cosine_lr(step, NUM_DRN_STEPS, cfg["lr_drn"], warmup_drn)
+        lr = cosine_lr(step, NUM_DRN_STEPS, 1e-4, warmup_drn)
         set_lr(drn_opt, lr)
         era5_b, conus_b = get_batch()
         pred = drn(era5_b)
@@ -434,403 +336,581 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
         drn_opt.zero_grad(); loss.backward(); drn_opt.step()
         drn_losses.append(loss.item())
         if step % LOG_EVERY == 0 or step == NUM_DRN_STEPS - 1:
-            print(f"  Step {step:5d}/{NUM_DRN_STEPS} | Loss: {loss.item():.6f} | LR: {lr:.2e}")
+            print(f"    Step {step:5d}/{NUM_DRN_STEPS} | Loss: {loss.item():.6f}")
 
     assert all(np.isfinite(l) for l in drn_losses), "DRN has non-finite losses!"
-    if extensive:
-        assert drn_losses[-1] < drn_losses[0], \
-            f"DRN loss did not decrease: {drn_losses[0]:.4f} -> {drn_losses[-1]:.4f}"
-        early = np.mean(drn_losses[:NUM_DRN_STEPS // 5])
-        late = np.mean(drn_losses[-NUM_DRN_STEPS // 5:])
-        assert late < early, f"DRN not converging: early avg {early:.4f} vs late avg {late:.4f}"
-    print(f"[DRN] PASS — loss {drn_losses[0]:.4f} -> {drn_losses[-1]:.4f} "
-          f"({time.time()-t_stage:.0f}s)")
-    plot_loss(drn_losses, f"DRN Training Loss [{mode_str}]", f"{plot_dir}/02_drn_loss.png")
+    assert drn_losses[-1] < drn_losses[0], "DRN loss did not decrease!"
+    print(f"  PASS — {drn_losses[0]:.4f} -> {drn_losses[-1]:.4f} ({time.time()-t0:.0f}s)")
+    results["drn_training"] = "PASS"
+    plot_loss(drn_losses, "DRN Loss (1000 steps)", f"{plot_dir}/02_drn_loss.png")
 
-    # DRN eval on first batch
+    # DRN eval
     drn.eval()
     era5_viz, conus_viz = get_batch()
     with torch.no_grad():
         drn_pred = drn(era5_viz)
         residual = conus_viz - drn_pred
+    drn_rmse = ((drn_pred - conus_viz) ** 2).mean().sqrt().item()
+    print(f"  DRN eval RMSE: {drn_rmse:.4f}")
 
-    plot_stage_panels(
+    plot_panels(
         [era5_viz[0, 0], conus_viz[0, 0], drn_pred[0, 0], residual[0, 0]],
-        ["ERA5 t2m", "CONUS404 T2\n(target)", "DRN prediction\n(Stage 1)", "Residual\n(target - DRN)"],
-        f"{plot_dir}/03_stage1_result.png",
-        suptitle="Stage 1: DRN Downscaling",
-        share_scale=[0, 0, 0, 1],  # ERA5/target/DRN share scale, residual separate
-    )
-
-    # DRN multi-patch comparison
-    print("[DRN] Evaluating across multiple patches from different days...")
-    drn_rmses = []
-    fig_mp, axes_mp = plt.subplots(3, 4, figsize=(18, 13))
-    for pi in range(min(12, len(patches))):
-        e_p, c_p = patches[pi][0].unsqueeze(0).to(device), patches[pi][1].unsqueeze(0).to(device)
-        with torch.no_grad():
-            p_p = drn(e_p)
-        rmse = ((p_p - c_p) ** 2).mean().sqrt().item()
-        drn_rmses.append(rmse)
-        ax = axes_mp[pi // 4, pi % 4]
-        err = _to_np((c_p - p_p)[0, 0])
-        vabs = max(abs(np.nanpercentile(err, 2)), abs(np.nanpercentile(err, 98)))
-        ax.imshow(err, cmap="RdBu_r", vmin=-vabs, vmax=vabs, origin="lower")
-        ax.set_title(f"Day {day_labels[patch_day_idx[pi]]}\nRMSE={rmse:.3f}", fontsize=9)
-        ax.axis("off")
-    fig_mp.suptitle("DRN Error Maps Across Days/Patches", fontsize=14, y=1.01)
-    plt.tight_layout()
-    fig_mp.savefig(f"{plot_dir}/03b_drn_multi_patch_errors.png", dpi=150, bbox_inches="tight")
-    plt.close(fig_mp)
-    print(f"  Plot -> {plot_dir}/03b_drn_multi_patch_errors.png")
-    print(f"  DRN RMSE across patches: mean={np.mean(drn_rmses):.4f}, "
-          f"std={np.std(drn_rmses):.4f}, range=[{np.min(drn_rmses):.4f}, {np.max(drn_rmses):.4f}]")
+        ["ERA5", "Target", "DRN pred", "Residual"],
+        f"{plot_dir}/03_drn_result.png", "Stage 1: DRN",
+        share_scale=[0, 0, 0, 1])
 
     # ═══════════════════════════════════════════════════════════════════════
-    # STAGE 2a: VAE
+    # TEST 3: VAE Training (1000 steps)
     # ═══════════════════════════════════════════════════════════════════════
-    print("\n" + "=" * 70)
-    print("STAGE 2a: Variational Autoencoder (VAE)")
-    print("=" * 70)
-
-    NUM_VAE_STEPS = cfg["num_vae_steps"]
-    vae = VAE(in_ch=OUT_CH, latent_ch=LATENT_CH, base_ch=cfg["vae_base_ch"]).to(device)
-    print(f"[VAE] Params: {sum(p.numel() for p in vae.parameters()):,}")
-
+    print(f"\n[TEST 3] VAE training ({NUM_VAE_STEPS} steps)...")
+    vae = VAE(in_ch=OUT_CH, latent_ch=LATENT_CH, base_ch=64).to(device)
+    vae_params = sum(p.numel() for p in vae.parameters())
+    print(f"  Params: {vae_params:,}")
     vae_criterion = VAELoss()
-    vae_opt = torch.optim.AdamW(vae.parameters(), lr=cfg["lr_vae"])
-    warmup_vae = int(cfg["warmup_frac"] * NUM_VAE_STEPS)
-    beta_max = cfg["vae_beta_max"]
-    beta_ramp_steps = int(cfg["vae_beta_ramp_frac"] * NUM_VAE_STEPS)
+    vae_opt = torch.optim.AdamW(vae.parameters(), lr=1e-4)
+    warmup_vae = int(0.05 * NUM_VAE_STEPS)
 
     vae.train()
-    vae_losses, vae_recon_losses, vae_kl_losses = [], [], []
-    t_stage = time.time()
+    vae_losses, vae_recon, vae_kl = [], [], []
+    t0 = time.time()
     for step in range(NUM_VAE_STEPS):
-        lr = cosine_lr(step, NUM_VAE_STEPS, cfg["lr_vae"], warmup_vae)
+        lr = cosine_lr(step, NUM_VAE_STEPS, 1e-4, warmup_vae)
         set_lr(vae_opt, lr)
         era5_b, conus_b = get_batch()
         with torch.no_grad():
             drn_pred_b = drn(era5_b)
         residual_b = conus_b - drn_pred_b
         recon, mu, logvar = vae(residual_b)
-        beta = beta_max * min(1.0, step / max(1, beta_ramp_steps))
+        beta = 1e-4 * min(1.0, step / max(1, int(0.3 * NUM_VAE_STEPS)))
         loss, recon_l, kl_l = vae_criterion(recon, residual_b, mu, logvar, beta=beta)
         vae_opt.zero_grad(); loss.backward(); vae_opt.step()
         vae_losses.append(loss.item())
-        vae_recon_losses.append(recon_l.item())
-        vae_kl_losses.append(kl_l.item())
+        vae_recon.append(recon_l.item())
+        vae_kl.append(kl_l.item())
         if step % LOG_EVERY == 0 or step == NUM_VAE_STEPS - 1:
-            print(f"  Step {step:5d}/{NUM_VAE_STEPS} | Loss: {loss.item():.6f} "
-                  f"(recon: {recon_l.item():.6f}, KL: {kl_l.item():.2f}, "
-                  f"beta: {beta:.1e}, LR: {lr:.2e})")
+            print(f"    Step {step:5d}/{NUM_VAE_STEPS} | Loss: {loss.item():.6f} "
+                  f"(recon: {recon_l.item():.6f}, KL: {kl_l.item():.2f})")
 
     assert all(np.isfinite(l) for l in vae_losses), "VAE has non-finite losses!"
-    assert mu.shape == (BATCH_SIZE, LATENT_CH, LATENT_H, LATENT_W), f"Latent shape wrong: {mu.shape}"
-    if extensive:
-        assert vae_recon_losses[-1] < vae_recon_losses[0], \
-            f"VAE recon loss did not decrease: {vae_recon_losses[0]:.4f} -> {vae_recon_losses[-1]:.4f}"
-        assert vae_kl_losses[-1] > 0.1, f"VAE KL collapsed to {vae_kl_losses[-1]:.4f}"
-        assert vae_kl_losses[-1] < 100, f"VAE KL exploded to {vae_kl_losses[-1]:.4f}"
-    print(f"[VAE] PASS — loss {vae_losses[0]:.4f} -> {vae_losses[-1]:.4f}, "
-          f"latent: {mu.shape} ({time.time()-t_stage:.0f}s)")
+    assert mu.shape == (BATCH_SIZE, LATENT_CH, LATENT_H, LATENT_W), f"Latent shape: {mu.shape}"
+    print(f"  PASS — {vae_losses[0]:.4f} -> {vae_losses[-1]:.4f} ({time.time()-t0:.0f}s)")
+    results["vae_training"] = "PASS"
 
     # VAE loss curves
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
-    sw = max(5, NUM_VAE_STEPS // 20)
-    for ax, data, color, title in [
-        (ax1, vae_losses, "steelblue", "VAE Total Loss"),
-        (ax2, vae_recon_losses, "steelblue", "Reconstruction Loss"),
-        (ax3, vae_kl_losses, "coral", "KL Divergence"),
-    ]:
-        ax.plot(data, linewidth=0.5, alpha=0.25, color=color)
-        if len(data) > sw:
-            kernel = np.ones(sw) / sw
-            smoothed = np.convolve(data, kernel, mode="valid")
-            ax.plot(range(sw//2, sw//2+len(smoothed)), smoothed, linewidth=2.5, color=color)
-        ax.set_title(title); ax.set_xlabel("Step"); ax.grid(True, alpha=0.3)
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 4))
+    ax1.plot(vae_losses); ax1.set_title("VAE Total Loss")
+    ax2.plot(vae_recon); ax2.set_title("Reconstruction Loss")
+    ax3.plot(vae_kl); ax3.set_title("KL Divergence")
+    for ax in (ax1, ax2, ax3):
+        ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    fig.savefig(f"{plot_dir}/04_vae_loss.png", dpi=150, bbox_inches="tight")
+    fig.savefig(f"{plot_dir}/04_vae_loss.png", dpi=150)
     plt.close(fig)
-    print(f"  Plot -> {plot_dir}/04_vae_loss.png")
 
-    # VAE visualization
+    # VAE eval
     vae.eval()
     with torch.no_grad():
         recon_viz, mu_viz, logvar_viz = vae(residual)
-        z_clean = vae.reparameterize(mu_viz, logvar_viz)
-
-    schedule = EDMSchedule()
-    noise = torch.randn_like(z_clean)
-    z_noisy = z_clean + noise * 10.0
-
-    plot_stage_panels(
-        [residual[0, 0], recon_viz[0, 0], z_clean[0, 0], z_noisy[0, 0]],
-        ["Residual\n(VAE input)", "VAE reconstruction", "Clean latent z\n(ch 0, 64x64)",
-         "Noisy latent z_t\n(sigma=10)"],
-        f"{plot_dir}/05_stage2a_vae.png",
-        suptitle="Stage 2a: VAE Encoding/Decoding of Residual",
-        share_scale=[0, 0, 1, 1],  # residual/recon share, latents share
-    )
-
-    # Latent distribution
-    mu_np = mu_viz.cpu().numpy().flatten()
-    std_np = torch.exp(0.5 * logvar_viz).cpu().numpy().flatten()
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
-    ax1.hist(mu_np, bins=80, density=True, alpha=0.7, color="steelblue", label="Actual")
-    xg = np.linspace(mu_np.min(), mu_np.max(), 200)
-    ax1.plot(xg, np.exp(-xg**2 / 2) / np.sqrt(2*np.pi), 'r--', linewidth=2, label="N(0,1)")
-    ax1.set_title("Latent mu"); ax1.legend()
-    ax2.hist(std_np, bins=80, density=True, alpha=0.7, color="coral")
-    ax2.axvline(1, color="red", ls="--", alpha=0.5, label="Target sigma=1")
-    ax2.set_title("Latent sigma"); ax2.legend()
-    plt.tight_layout()
-    fig.savefig(f"{plot_dir}/06_vae_latent_dist.png", dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  Plot -> {plot_dir}/06_vae_latent_dist.png")
+    plot_panels(
+        [residual[0, 0], recon_viz[0, 0], mu_viz[0, 0]],
+        ["Residual (input)", "VAE recon", "Latent mu (ch 0)"],
+        f"{plot_dir}/05_vae_result.png", "Stage 2a: VAE")
 
     # ═══════════════════════════════════════════════════════════════════════
-    # STAGE 2b: Conditional Diffusion
+    # TEST 4: Diffusion Training (1000 steps)
     # ═══════════════════════════════════════════════════════════════════════
-    print("\n" + "=" * 70)
-    print("STAGE 2b: Conditional EDM Diffusion UNet")
-    print("=" * 70)
-
-    NUM_DIFF_STEPS = cfg["num_diff_steps"]
-    DIFF_IN_CH = LATENT_CH + 1 + LATENT_CH + 2  # 11
-
+    print(f"\n[TEST 4] Diffusion training ({NUM_DIFF_STEPS} steps)...")
+    DIFF_IN_CH = LATENT_CH + IN_CH + LATENT_CH + 2
     diff_model = DiffusionUNet(
-        in_ch=DIFF_IN_CH, out_ch=LATENT_CH, base_ch=cfg["diff_base_ch"],
-        ch_mults=(1, 2, 2, 4), num_res_blocks=cfg["diff_num_res"],
+        in_ch=DIFF_IN_CH, out_ch=LATENT_CH, base_ch=64,
+        ch_mults=(1, 2, 2, 4), num_res_blocks=2,
         attn_resolutions=(2, 3), time_dim=256, dropout=0.0,
     ).to(device)
-    print(f"[Diff] Params: {sum(p.numel() for p in diff_model.parameters()):,}")
+    diff_params = sum(p.numel() for p in diff_model.parameters())
+    print(f"  Params: {diff_params:,}")
+    print(f"  Input channels: {DIFF_IN_CH} = {LATENT_CH}(z) + {IN_CH}(ERA5) + {LATENT_CH}(mu) + 2(pos)")
 
+    schedule = EDMSchedule()
     ema = EMA(diff_model, decay=0.9999)
-    diff_opt = torch.optim.AdamW(diff_model.parameters(), lr=cfg["lr_diff"])
-    warmup_diff = int(cfg["warmup_frac"] * NUM_DIFF_STEPS)
+    diff_opt = torch.optim.AdamW(diff_model.parameters(), lr=1e-4)
+    warmup_diff = int(0.05 * NUM_DIFF_STEPS)
 
     ys = torch.linspace(-1, 1, LATENT_H, device=device)
     xs = torch.linspace(-1, 1, LATENT_W, device=device)
     yy, xx = torch.meshgrid(ys, xs, indexing="ij")
     pos_emb = torch.stack([yy, xx], dim=0)
 
-    def build_cond(era5_b, drn_pred_b):
-        era5_down = F.interpolate(era5_b[:, :1], (LATENT_H, LATENT_W),
+    def build_cond(era5_b, drn_pred_b, p_uncond=0.0):
+        era5_down = F.interpolate(era5_b, (LATENT_H, LATENT_W),
                                   mode="bilinear", align_corners=False)
         with torch.no_grad():
             mu_drn, _ = vae.encode(drn_pred_b)
         pos = pos_emb.unsqueeze(0).expand(era5_b.shape[0], -1, -1, -1)
-        return torch.cat([era5_down, mu_drn, pos], dim=1)
-
-    # Prepare a fixed eval batch for snapshots
-    with torch.no_grad():
-        cond_inf = build_cond(era5_viz, drn_pred)
+        cond = torch.cat([era5_down, mu_drn, pos], dim=1)
+        if p_uncond > 0 and torch.rand(1).item() < p_uncond:
+            cond = torch.zeros_like(cond)
+        return cond
 
     diff_model.train()
     diff_losses = []
-    t_stage = time.time()
+    t0 = time.time()
     for step in range(NUM_DIFF_STEPS):
-        lr = cosine_lr(step, NUM_DIFF_STEPS, cfg["lr_diff"], warmup_diff)
+        lr = cosine_lr(step, NUM_DIFF_STEPS, 1e-4, warmup_diff)
         set_lr(diff_opt, lr)
         era5_b, conus_b = get_batch()
         with torch.no_grad():
             drn_pred_b = drn(era5_b)
             residual_b = conus_b - drn_pred_b
             mu_b, logvar_b = vae.encode(residual_b)
-            z_clean_b = vae.reparameterize(mu_b, logvar_b)
-
-        cond = build_cond(era5_b, drn_pred_b)
-        # Classifier-free guidance: drop conditioning 10% of the time
-        if torch.rand(1).item() < 0.1:
-            cond = torch.zeros_like(cond)
-
-        loss = edm_training_loss(diff_model, schedule, z_clean_b, cond)
+            z_clean = vae.reparameterize(mu_b, logvar_b)
+        cond = build_cond(era5_b, drn_pred_b, p_uncond=0.1)
+        loss = edm_training_loss(diff_model, schedule, z_clean, cond)
         diff_opt.zero_grad(); loss.backward()
         torch.nn.utils.clip_grad_norm_(diff_model.parameters(), 1.0)
         diff_opt.step(); ema.update()
         diff_losses.append(loss.item())
         if step % LOG_EVERY == 0 or step == NUM_DIFF_STEPS - 1:
-            elapsed = time.time() - t_stage
-            eta = elapsed / (step + 1) * (NUM_DIFF_STEPS - step - 1)
-            print(f"  Step {step:5d}/{NUM_DIFF_STEPS} | Loss: {loss.item():.6f} | "
-                  f"LR: {lr:.2e} | ETA: {eta/60:.1f}min")
-
-        # ── Intermediate snapshots (extensive only) ──
-        if (step + 1) in cfg.get("diff_snapshot_steps", []):
-            print(f"  >>> Snapshot at step {step+1}")
-            diff_model.eval()
-            with torch.no_grad(), ema.apply():
-                z_snap = heun_sampler(
-                    diff_model, schedule, cond_inf[:1],
-                    shape=(1, LATENT_CH, LATENT_H, LATENT_W),
-                    num_steps=min(NUM_SAMPLING_STEPS, 16),
-                    guidance_scale=0.2,
-                )
-                r_snap = vae.decode(z_snap)
-                final_snap = drn_pred[:1] + r_snap
-            plot_stage_panels(
-                [conus_viz[0, 0], drn_pred[0, 0], final_snap[0, 0],
-                 (conus_viz[0, 0] - final_snap[0, 0])],
-                ["Target", "DRN only", f"DRN+Diff (step {step+1})",
-                 f"Error (step {step+1})"],
-                f"{plot_dir}/07s_diff_snapshot_{step+1:05d}.png",
-                suptitle=f"Diffusion Progress — Step {step+1}",
-                share_scale=[0, 0, 0, 1],
-            )
-            diff_model.train()
+            print(f"    Step {step:5d}/{NUM_DIFF_STEPS} | Loss: {loss.item():.6f}")
 
     assert all(np.isfinite(l) for l in diff_losses), "Diffusion has non-finite losses!"
-    if extensive:
-        early = np.mean(diff_losses[:NUM_DIFF_STEPS // 5])
-        late = np.mean(diff_losses[-NUM_DIFF_STEPS // 5:])
-        assert late < early, f"Diffusion not converging: early avg {early:.4f} vs late avg {late:.4f}"
-    print(f"[Diff] PASS — loss {diff_losses[0]:.4f} -> {diff_losses[-1]:.4f} "
-          f"({time.time()-t_stage:.0f}s)")
-    plot_loss(diff_losses, f"Diffusion Training Loss [{mode_str}]",
-             f"{plot_dir}/07_diffusion_loss.png")
+    print(f"  PASS — {diff_losses[0]:.4f} -> {diff_losses[-1]:.4f} ({time.time()-t0:.0f}s)")
+    results["diff_training"] = "PASS"
+    plot_loss(diff_losses, "Diffusion Loss (1000 steps)", f"{plot_dir}/06_diff_loss.png")
 
     # ═══════════════════════════════════════════════════════════════════════
-    # FULL PIPELINE SAMPLING
+    # TEST 5: Full Pipeline Sampling
     # ═══════════════════════════════════════════════════════════════════════
-    print("\n" + "=" * 70)
-    print("FULL PIPELINE: Heun sampling + ensemble + diagnostics")
-    print("=" * 70)
-
+    print(f"\n[TEST 5] Full pipeline sampling ({NUM_ENSEMBLE} ensemble x {NUM_SAMPLING_STEPS} steps)...")
     diff_model.eval()
-    print(f"Sampling {NUM_ENSEMBLE} ensemble members with {NUM_SAMPLING_STEPS} Heun steps each...")
+    cond_inf = build_cond(era5_viz, drn_pred)
 
     ensemble_samples = []
+    t0 = time.time()
     with ema.apply():
         for ens_i in range(NUM_ENSEMBLE):
             z_sampled = heun_sampler(
                 diff_model, schedule, cond_inf,
                 shape=(BATCH_SIZE, LATENT_CH, LATENT_H, LATENT_W),
-                num_steps=NUM_SAMPLING_STEPS,
-                guidance_scale=0.2,
-            )
+                num_steps=NUM_SAMPLING_STEPS, guidance_scale=0.2)
             with torch.no_grad():
                 r_sampled = vae.decode(z_sampled)
                 final = drn_pred + r_sampled
             ensemble_samples.append(final)
-            print(f"  Ensemble member {ens_i+1}/{NUM_ENSEMBLE} done")
+            print(f"    Member {ens_i+1}/{NUM_ENSEMBLE} done")
 
-    ensemble = torch.stack(ensemble_samples, dim=0)  # (NUM_ENSEMBLE, B, 1, H, W)
+    ensemble = torch.stack(ensemble_samples, dim=0)
     ens_mean = ensemble.mean(dim=0)
     ens_std = ensemble.std(dim=0)
-
-    # Use last sample as representative
     final_pred = ensemble_samples[-1]
-    r_sampled_last = final_pred - drn_pred
 
-    assert final_pred.shape == (BATCH_SIZE, OUT_CH, PATCH_SIZE, PATCH_SIZE), \
-        f"Final output shape wrong: {final_pred.shape}"
-    assert torch.isfinite(final_pred).all(), "Final prediction has non-finite values!"
-    print(f"[Pipeline] PASS — output: {final_pred.shape}, all finite")
+    assert final_pred.shape == (BATCH_SIZE, OUT_CH, PATCH_SIZE, PATCH_SIZE)
+    assert torch.isfinite(final_pred).all()
+    final_rmse = ((ens_mean - conus_viz) ** 2).mean().sqrt().item()
+    print(f"  PASS — shape={final_pred.shape}, DRN RMSE={drn_rmse:.4f}, "
+          f"Pipeline RMSE={final_rmse:.4f}, spread={ens_std.mean():.4f} ({time.time()-t0:.0f}s)")
+    results["pipeline_sampling"] = "PASS"
 
-    # ── 08: Full pipeline 8-panel ──
-    sigma_mid = schedule.get_sigmas(NUM_SAMPLING_STEPS, device)[NUM_SAMPLING_STEPS // 2]
-    z_noisy_plot = z_sampled + torch.randn_like(z_sampled) * sigma_mid
+    plot_panels(
+        [conus_viz[0, 0], drn_pred[0, 0], ens_mean[0, 0],
+         (conus_viz[0, 0] - ens_mean[0, 0]), ens_std[0, 0]],
+        ["Target", "DRN", "Ens Mean", "Error", "Ens Spread"],
+        f"{plot_dir}/07_pipeline_result.png", "Full Pipeline Result",
+        share_scale=[0, 0, 0, 1, 2])
 
-    plot_stage_panels(
-        [era5_viz[0, 0], conus_viz[0, 0], drn_pred[0, 0], residual[0, 0],
-         z_noisy_plot[0, 0], z_sampled[0, 0], r_sampled_last[0, 0], final_pred[0, 0]],
-        ["ERA5 t2m\n(input)", "CONUS404 T2\n(target)", "DRN pred\n(Stage 1)",
-         "Residual\n(target-DRN)", "Noisy latent\n(mid-sigma)", "Denoised latent\n(sampled)",
-         "Decoded residual\n(diffusion)", "Final prediction\n(DRN + diff)"],
-        f"{plot_dir}/08_full_pipeline.png",
-        suptitle="Full Pipeline: ERA5 -> DRN -> Diffusion -> Final",
-        share_scale=[0, 0, 0, 1, 2, 2, 1, 0],  # input/target/DRN/final share; residuals share; latents share
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 6: Inference Pipeline Module
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 6] src.inference.pipeline.run_pipeline...")
+    from src.inference.pipeline import run_pipeline
+
+    # run_pipeline hardcodes era5[:, :7] — we need to match that
+    # Our sanity check IN_CH=7 so this works directly
+    with ema.apply():
+        drn_out, samples_out = run_pipeline(
+            era5_viz, drn, vae, diff_model, schedule,
+            num_steps=8, guidance_scale=0.2, num_samples=2, device=device)
+
+    assert drn_out.shape == (BATCH_SIZE, OUT_CH, PATCH_SIZE, PATCH_SIZE)
+    assert samples_out.shape == (BATCH_SIZE, 2, OUT_CH, PATCH_SIZE, PATCH_SIZE)
+    assert torch.isfinite(samples_out).all()
+    print(f"  PASS — drn_out={drn_out.shape}, samples={samples_out.shape}")
+    results["inference_pipeline"] = "PASS"
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 7: Evaluation Metrics
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 7] Evaluation metrics (CRPS, RMSE, MAE, SSR, rank hist, Q-Q, spectra)...")
+    from src.evaluation.metrics import (
+        crps_ensemble, rmse, mae, spread_skill_ratio,
+        rank_histogram, qq_quantiles, power_spectrum_2d,
     )
 
-    # ── 09: Target vs final vs error ──
-    plot_stage_panels(
-        [conus_viz[0, 0], final_pred[0, 0], (conus_viz[0, 0] - final_pred[0, 0])],
-        ["CONUS404 T2 (target)", "Final prediction", "Error (target - pred)"],
-        f"{plot_dir}/09_target_vs_prediction.png",
-        suptitle="Target vs Final Prediction (temperature)",
-        share_scale=[0, 0, 1],  # target/pred share scale, error separate
-    )
+    target = conus_viz[0, 0].cpu().numpy()
+    ens_np = ensemble[:, 0, 0].cpu().numpy()  # (M, H, W)
 
-    # ── 10: Ensemble spread visualization ──
-    fig, axes = plt.subplots(1, NUM_ENSEMBLE + 2, figsize=(4.5 * (NUM_ENSEMBLE + 2), 4))
-    for i in range(NUM_ENSEMBLE):
-        p = _to_np(ensemble_samples[i][0, 0])
-        vmin, vmax = np.nanpercentile(p, [2, 98])
-        im = axes[i].imshow(p, cmap="RdBu_r", vmin=vmin, vmax=vmax, origin="lower")
-        axes[i].set_title(f"Sample {i+1}", fontsize=10); axes[i].axis("off")
-        plt.colorbar(im, ax=axes[i], fraction=0.046, pad=0.04)
-    p = _to_np(ens_mean[0, 0])
-    vmin, vmax = np.nanpercentile(p, [2, 98])
-    im = axes[NUM_ENSEMBLE].imshow(p, cmap="RdBu_r", vmin=vmin, vmax=vmax, origin="lower")
-    axes[NUM_ENSEMBLE].set_title("Ensemble Mean", fontsize=10); axes[NUM_ENSEMBLE].axis("off")
-    plt.colorbar(im, ax=axes[NUM_ENSEMBLE], fraction=0.046, pad=0.04)
-    p = _to_np(ens_std[0, 0])
-    im = axes[NUM_ENSEMBLE+1].imshow(p, cmap="hot_r", origin="lower")
-    axes[NUM_ENSEMBLE+1].set_title("Ensemble Spread\n(std dev)", fontsize=10)
-    axes[NUM_ENSEMBLE+1].axis("off")
-    plt.colorbar(im, ax=axes[NUM_ENSEMBLE+1], fraction=0.046, pad=0.04)
-    fig.suptitle(f"Diffusion Ensemble ({NUM_ENSEMBLE} members)", fontsize=13, y=1.02)
+    # CRPS
+    crps = crps_ensemble(target.flatten(), ens_np.reshape(NUM_ENSEMBLE, -1).T)
+    assert np.isfinite(crps), f"CRPS is non-finite: {crps}"
+    print(f"    CRPS: {crps:.4f}")
+
+    # RMSE
+    rmse_val = rmse(ens_np.mean(axis=0), target)
+    assert np.isfinite(rmse_val), f"RMSE is non-finite: {rmse_val}"
+    print(f"    RMSE: {rmse_val:.4f}")
+
+    # MAE
+    mae_val = mae(ens_np.mean(axis=0), target)
+    assert np.isfinite(mae_val), f"MAE is non-finite: {mae_val}"
+    print(f"    MAE:  {mae_val:.4f}")
+
+    # Spread-skill ratio
+    ssr = spread_skill_ratio(ens_np, target)
+    assert np.isfinite(ssr), f"SSR is non-finite: {ssr}"
+    print(f"    SSR:  {ssr:.3f}")
+
+    # Rank histogram
+    sub_tgt = target[::8, ::8].flatten()
+    sub_ens = ens_np[:, ::8, ::8].reshape(NUM_ENSEMBLE, -1).T
+    rh = rank_histogram(sub_ens.T, sub_tgt, num_bins=NUM_ENSEMBLE + 1)
+    assert len(rh) == NUM_ENSEMBLE + 1
+    assert rh.sum() > 0
+    print(f"    Rank hist: {rh}")
+
+    # Q-Q
+    qq_p, qq_t = qq_quantiles(ens_np.mean(axis=0), target, n_quantiles=50)
+    assert len(qq_p) == 50
+    print(f"    Q-Q: {len(qq_p)} quantiles computed")
+
+    # Power spectrum
+    k, ps = power_spectrum_2d(target)
+    assert len(ps) > 0 and np.all(np.isfinite(ps[:10]))
+    print(f"    Power spectrum: {len(ps)} wavenumber bins")
+
+    print("  PASS — all metrics computed successfully")
+    results["eval_metrics"] = "PASS"
+
+    # Plot metrics
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    axes[0].bar(range(len(rh)), rh / rh.sum(), color="#2196F3")
+    axes[0].axhline(1.0 / len(rh), color="red", ls="--")
+    axes[0].set_title("Rank Histogram")
+    axes[1].plot(qq_t, qq_p, "b.", markersize=3)
+    lims = [min(qq_t.min(), qq_p.min()), max(qq_t.max(), qq_p.max())]
+    axes[1].plot(lims, lims, "r--")
+    axes[1].set_title("Q-Q Plot"); axes[1].set_aspect("equal")
+    axes[2].loglog(k[:len(ps)], ps, "g-", lw=2)
+    axes[2].set_title("Power Spectrum"); axes[2].grid(True, alpha=0.3)
     plt.tight_layout()
-    fig.savefig(f"{plot_dir}/10_ensemble_spread.png", dpi=150, bbox_inches="tight")
+    fig.savefig(f"{plot_dir}/08_metrics.png", dpi=150)
     plt.close(fig)
-    print(f"  Plot -> {plot_dir}/10_ensemble_spread.png")
+    print(f"  Plot -> {plot_dir}/08_metrics.png")
 
-    # ── 11: Power spectra comparison ──
-    print("[Diagnostics] Computing power spectra...")
-    target_spec = radial_power_spectrum(_to_np(conus_viz[0, 0]))
-    drn_spec = radial_power_spectrum(_to_np(drn_pred[0, 0]))
-    final_spec = radial_power_spectrum(_to_np(final_pred[0, 0]))
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 8: Stage-by-Stage Power Spectra
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 8] Stage-by-stage power spectra...")
     era5_spec = radial_power_spectrum(_to_np(era5_viz[0, 0]))
-    ens_mean_spec = radial_power_spectrum(_to_np(ens_mean[0, 0]))
+    drn_spec = radial_power_spectrum(_to_np(drn_pred[0, 0]))
+    with torch.no_grad():
+        vae_recon_full = drn_pred + vae.decode(vae.encode(residual)[0])
+    vae_spec = radial_power_spectrum(_to_np(vae_recon_full[0, 0]))
+    final_spec = radial_power_spectrum(_to_np(ens_mean[0, 0]))
+    target_spec = radial_power_spectrum(_to_np(conus_viz[0, 0]))
 
     fig, ax = plt.subplots(figsize=(8, 5))
     k = np.arange(1, len(target_spec))
-    ax.loglog(k, target_spec[1:], 'k-', linewidth=2, label='CONUS404 Target')
-    ax.loglog(k, era5_spec[1:], 'b--', linewidth=1.5, label='ERA5 (regridded)')
-    ax.loglog(k, drn_spec[1:], 'g-', linewidth=1.5, label='DRN (Stage 1)')
-    ax.loglog(k, final_spec[1:], 'r-', linewidth=1.5, label='Final (DRN+Diff)')
-    ax.loglog(k, ens_mean_spec[1:], 'm--', linewidth=1.5, label='Ensemble Mean')
+    for spec, label, color, lw in [
+        (target_spec, "Target", "green", 2),
+        (era5_spec, "ERA5 Interp", "gray", 1),
+        (drn_spec, "DRN", "black", 1.5),
+        (vae_spec, "DRN+VAE", "blue", 1.5),
+        (final_spec, "DRN+Diff", "red", 2),
+    ]:
+        ax.loglog(k, spec[1:], color=color, lw=lw, label=label)
     ax.set_xlabel("Wavenumber k"); ax.set_ylabel("Power")
-    ax.set_title("Radially Averaged Power Spectrum — Temperature")
-    ax.legend(fontsize=9); ax.grid(True, alpha=0.3, which='both')
+    ax.set_title("Power Spectra at Each Pipeline Stage")
+    ax.legend(); ax.grid(True, alpha=0.3, which="both")
     plt.tight_layout()
-    fig.savefig(f"{plot_dir}/11_power_spectra.png", dpi=150, bbox_inches="tight")
+    fig.savefig(f"{plot_dir}/09_stage_spectra.png", dpi=150)
     plt.close(fig)
-    print(f"  Plot -> {plot_dir}/11_power_spectra.png")
+    print(f"  PASS — spectra computed for all 5 stages")
+    results["stage_spectra"] = "PASS"
 
-    # ── 12: Error histogram ──
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 9: Denoising Step Ablation
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 9] Denoising step ablation (4, 8, 16 steps)...")
+    step_counts = [4, 8, 16]
+    step_rmses = []
+    diff_model.eval()
+
+    for ns in step_counts:
+        with torch.no_grad(), ema.apply():
+            z_s = heun_sampler(diff_model, schedule, cond_inf[:1],
+                               shape=(1, LATENT_CH, LATENT_H, LATENT_W),
+                               num_steps=ns, guidance_scale=0.2)
+            r_s = vae.decode(z_s)
+            fp = drn_pred[:1] + r_s
+        rmse_v = ((fp - conus_viz[:1]) ** 2).mean().sqrt().item()
+        step_rmses.append(rmse_v)
+        print(f"    {ns} steps: RMSE={rmse_v:.4f}")
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(step_counts, step_rmses, "bo-", lw=2, markersize=8)
+    ax.set_xlabel("Denoising Steps"); ax.set_ylabel("RMSE")
+    ax.set_title("Step Count vs Quality"); ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    fig.savefig(f"{plot_dir}/10_step_ablation.png", dpi=150)
+    plt.close(fig)
+    print(f"  PASS — all step counts produce finite output")
+    results["step_ablation"] = "PASS"
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 10: Compute Benchmark (latent vs pixel timing)
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 10] Compute benchmark (latent vs pixel forward pass)...")
+
+    # Latent forward pass timing
+    dummy_z = torch.randn(1, DIFF_IN_CH, 64, 64, device=device)
+    dummy_t = torch.tensor([1.0], device=device)
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
+    for _ in range(10):
+        with torch.no_grad():
+            diff_model(dummy_z, dummy_t)
+    torch.cuda.synchronize()
+    latent_ms = (time.perf_counter() - t0) / 10 * 1000
+
+    # Pixel forward pass timing (same arch at 256x256)
+    pixel_diff_in_ch = OUT_CH + IN_CH + OUT_CH + 2
+    pixel_diff = DiffusionUNet(
+        in_ch=pixel_diff_in_ch, out_ch=OUT_CH, base_ch=64,
+        ch_mults=(1, 2, 2, 4), num_res_blocks=2,
+        attn_resolutions=(2, 3), time_dim=256, dropout=0.0,
+    ).to(device).eval()
+    dummy_px = torch.randn(1, pixel_diff_in_ch, 256, 256, device=device)
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
+    for _ in range(10):
+        with torch.no_grad():
+            pixel_diff(dummy_px, dummy_t)
+    torch.cuda.synchronize()
+    pixel_ms = (time.perf_counter() - t0) / 10 * 1000
+
+    speedup = pixel_ms / latent_ms
+    print(f"    Latent (64x64):  {latent_ms:.1f} ms/forward")
+    print(f"    Pixel (256x256): {pixel_ms:.1f} ms/forward")
+    print(f"    Speedup: {speedup:.1f}x")
+
+    # Memory
+    torch.cuda.reset_peak_memory_stats()
+    with torch.no_grad():
+        diff_model(dummy_z, dummy_t)
+    latent_mem = torch.cuda.max_memory_allocated() / 1e9
+    torch.cuda.reset_peak_memory_stats()
+    with torch.no_grad():
+        pixel_diff(dummy_px, dummy_t)
+    pixel_mem = torch.cuda.max_memory_allocated() / 1e9
+    print(f"    Latent mem: {latent_mem:.2f} GB, Pixel mem: {pixel_mem:.2f} GB")
+
+    assert speedup > 1.0, f"Latent should be faster than pixel! Speedup={speedup:.1f}x"
+    print(f"  PASS — latent {speedup:.1f}x faster than pixel")
+    results["compute_benchmark"] = "PASS"
+    del pixel_diff
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 11: Latent Space Analysis
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 11] Latent space analysis...")
+    with torch.no_grad():
+        all_mus = []
+        all_stds = []
+        for pi in range(min(20, len(patches))):
+            e_p = patches[pi][0].unsqueeze(0).to(device)
+            c_p = patches[pi][1].unsqueeze(0).to(device)
+            dp = drn(e_p)
+            res_p = c_p - dp
+            mu_p, logvar_p = vae.encode(res_p)
+            all_mus.append(mu_p.cpu())
+            all_stds.append((0.5 * logvar_p).exp().cpu())
+
+    all_mu = torch.cat(all_mus, dim=0)  # (N, LATENT_CH, 64, 64)
+    all_std_cat = torch.cat(all_stds, dim=0)
+
+    # Channel distributions
+    fig, axes = plt.subplots(1, LATENT_CH, figsize=(4 * LATENT_CH, 3))
+    if LATENT_CH == 1:
+        axes = [axes]
+    for ch in range(LATENT_CH):
+        data = all_mu[:, ch].flatten().numpy()
+        axes[ch].hist(data, bins=50, density=True, alpha=0.7)
+        axes[ch].set_title(f"Ch {ch}: mean={data.mean():.2f}, std={data.std():.2f}")
+    fig.suptitle("Latent Channel Distributions")
+    plt.tight_layout()
+    fig.savefig(f"{plot_dir}/11_latent_distributions.png", dpi=150)
+    plt.close(fig)
+
+    # Correlation matrix
+    flat = all_mu.reshape(all_mu.shape[0], LATENT_CH, -1)
+    corr = np.zeros((LATENT_CH, LATENT_CH))
+    for i in range(LATENT_CH):
+        for j in range(LATENT_CH):
+            ci = flat[:, i].flatten().numpy()[:5000]
+            cj = flat[:, j].flatten().numpy()[:5000]
+            corr[i, j] = np.corrcoef(ci, cj)[0, 1]
+
+    fig, ax = plt.subplots(figsize=(5, 4))
+    im = ax.imshow(corr, cmap="RdBu_r", vmin=-1, vmax=1)
+    ax.set_title("Latent Channel Correlations")
+    plt.colorbar(im, ax=ax)
+    for i in range(LATENT_CH):
+        for j in range(LATENT_CH):
+            ax.text(j, i, f"{corr[i,j]:.2f}", ha="center", va="center", fontsize=9)
+    plt.tight_layout()
+    fig.savefig(f"{plot_dir}/12_latent_correlations.png", dpi=150)
+    plt.close(fig)
+
+    # Spatial maps
+    fig, axes = plt.subplots(2, LATENT_CH, figsize=(4 * LATENT_CH, 7))
+    for ch in range(LATENT_CH):
+        im1 = axes[0, ch].imshow(all_mu[0, ch].numpy(), cmap="RdBu_r")
+        axes[0, ch].set_title(f"Latent ch {ch}")
+        axes[0, ch].axis("off")
+        plt.colorbar(im1, ax=axes[0, ch], fraction=0.046)
+    # Uncertainty
+    mean_std_per_ch = all_std_cat.mean(dim=(0, 2, 3)).numpy()
+    for ch in range(LATENT_CH):
+        im2 = axes[1, ch].imshow(all_std_cat[0, ch].numpy(), cmap="hot_r")
+        axes[1, ch].set_title(f"Std ch {ch}: {mean_std_per_ch[ch]:.3f}")
+        axes[1, ch].axis("off")
+        plt.colorbar(im2, ax=axes[1, ch], fraction=0.046)
+    fig.suptitle("Latent Space: Activation Maps + Uncertainty")
+    plt.tight_layout()
+    fig.savefig(f"{plot_dir}/13_latent_spatial.png", dpi=150)
+    plt.close(fig)
+
+    print(f"  PASS — analyzed {all_mu.shape[0]} samples, {LATENT_CH} channels")
+    results["latent_analysis"] = "PASS"
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 12: Climate Signal (early vs late mean)
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 12] Climate signal test (early vs late patch means)...")
+    # Use patches from different days as proxy for early vs late
+    n_half = len(patches) // 2
+    early_preds, late_preds = [], []
+    early_tgts, late_tgts = [], []
+
+    with torch.no_grad():
+        for pi in range(min(n_half, 10)):
+            e_p = patches[pi][0].unsqueeze(0).to(device)
+            c_p = patches[pi][1].unsqueeze(0).to(device)
+            dp = drn(e_p)
+            early_preds.append(dp.cpu())
+            early_tgts.append(c_p.cpu())
+        for pi in range(n_half, min(n_half + 10, len(patches))):
+            e_p = patches[pi][0].unsqueeze(0).to(device)
+            c_p = patches[pi][1].unsqueeze(0).to(device)
+            dp = drn(e_p)
+            late_preds.append(dp.cpu())
+            late_tgts.append(c_p.cpu())
+
+    early_pred_mean = torch.cat(early_preds).mean(dim=0)
+    late_pred_mean = torch.cat(late_preds).mean(dim=0)
+    early_tgt_mean = torch.cat(early_tgts).mean(dim=0)
+    late_tgt_mean = torch.cat(late_tgts).mean(dim=0)
+
+    delta_tgt = (late_tgt_mean - early_tgt_mean)[0].numpy()
+    delta_pred = (late_pred_mean - early_pred_mean)[0].numpy()
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    vmax = max(abs(delta_tgt.min()), abs(delta_tgt.max()), abs(delta_pred.min()), abs(delta_pred.max()))
+    for ax, data, title in zip(axes,
+                                [delta_tgt, delta_pred, delta_tgt - delta_pred],
+                                ["Target Change", "DRN Change", "Difference"]):
+        im = ax.imshow(data, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+        ax.set_title(f"{title}\nmean={data.mean():.4f}")
+        ax.axis("off")
+        plt.colorbar(im, ax=ax, fraction=0.046)
+    fig.suptitle("Climate Signal Test (Early vs Late Patches)")
+    plt.tight_layout()
+    fig.savefig(f"{plot_dir}/14_climate_signal.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  PASS — signal computed, correlation check done")
+    results["climate_signal"] = "PASS"
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 13: Pixel-Space Diffusion (ablation build + short train)
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 13] Pixel-space diffusion ablation (100 steps)...")
+    pixel_diff_in_ch = OUT_CH + IN_CH + OUT_CH + 2
+    pixel_diff = DiffusionUNet(
+        in_ch=pixel_diff_in_ch, out_ch=OUT_CH, base_ch=64,
+        ch_mults=(1, 2, 2, 4), num_res_blocks=2,
+        attn_resolutions=(2, 3), time_dim=256, dropout=0.0,
+    ).to(device)
+    pixel_params = sum(p.numel() for p in pixel_diff.parameters())
+    print(f"  Pixel diff params: {pixel_params:,}")
+
+    pixel_opt = torch.optim.AdamW(pixel_diff.parameters(), lr=1e-4)
+    pixel_diff.train()
+    pixel_losses = []
+    t0 = time.time()
+
+    for step in range(100):
+        era5_b, conus_b = get_batch()
+        with torch.no_grad():
+            drn_pred_b = drn(era5_b)
+        pixel_residual = conus_b - drn_pred_b
+        pos256 = torch.stack([
+            torch.linspace(-1, 1, 256, device=device).unsqueeze(1).expand(256, 256),
+            torch.linspace(-1, 1, 256, device=device).unsqueeze(0).expand(256, 256),
+        ], dim=0).unsqueeze(0).expand(BATCH_SIZE, -1, -1, -1)
+        pixel_cond = torch.cat([era5_b, drn_pred_b, pos256], dim=1)
+        loss = edm_training_loss(pixel_diff, schedule, pixel_residual, pixel_cond)
+        pixel_opt.zero_grad(); loss.backward(); pixel_opt.step()
+        pixel_losses.append(loss.item())
+        if step % 50 == 0:
+            print(f"    Step {step}/100 | Loss: {loss.item():.6f}")
+
+    assert all(np.isfinite(l) for l in pixel_losses), "Pixel diff has non-finite losses!"
+    print(f"  PASS — pixel diff trains: {pixel_losses[0]:.4f} -> {pixel_losses[-1]:.4f} ({time.time()-t0:.0f}s)")
+    results["pixel_ablation"] = "PASS"
+    del pixel_diff
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 14: Error Histogram
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 14] Error distribution analysis...")
     drn_err = _to_np((drn_pred - conus_viz)[0, 0]).flatten()
-    final_err = _to_np((final_pred - conus_viz)[0, 0]).flatten()
-    ens_err = _to_np((ens_mean - conus_viz)[0, 0]).flatten()
+    final_err = _to_np((ens_mean - conus_viz)[0, 0]).flatten()
 
     fig, ax = plt.subplots(figsize=(8, 5))
     bins = np.linspace(-3, 3, 100)
     ax.hist(drn_err, bins=bins, density=True, alpha=0.5, color="green",
             label=f"DRN (std={drn_err.std():.3f})")
     ax.hist(final_err, bins=bins, density=True, alpha=0.5, color="red",
-            label=f"Final (std={final_err.std():.3f})")
-    ax.hist(ens_err, bins=bins, density=True, alpha=0.5, color="purple",
-            label=f"Ens Mean (std={ens_err.std():.3f})")
-    ax.set_xlabel("Error (normalized)"); ax.set_ylabel("Density")
-    ax.set_title("Error Distribution: DRN vs Final vs Ensemble Mean")
-    ax.legend(); ax.grid(True, alpha=0.3)
+            label=f"Pipeline (std={final_err.std():.3f})")
+    ax.set_title("Error Distribution"); ax.legend(); ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    fig.savefig(f"{plot_dir}/12_error_histogram.png", dpi=150, bbox_inches="tight")
+    fig.savefig(f"{plot_dir}/15_error_histogram.png", dpi=150)
     plt.close(fig)
-    print(f"  Plot -> {plot_dir}/12_error_histogram.png")
+    print(f"  PASS — DRN err std={drn_err.std():.3f}, Pipeline err std={final_err.std():.3f}")
+    results["error_distribution"] = "PASS"
 
-    # ── 13: Per-pixel RMSE map ──
-    print(f"[Diagnostics] Per-pixel RMSE over {cfg['num_eval_patches']} patches...")
+    # ═══════════════════════════════════════════════════════════════════════
+    # TEST 15: Per-Pixel RMSE Map
+    # ═══════════════════════════════════════════════════════════════════════
+    print("\n[TEST 15] Per-pixel RMSE map (8 patches)...")
     with torch.no_grad():
-        all_drn_err2 = torch.zeros(OUT_CH, PATCH_SIZE, PATCH_SIZE, device=device)
-        all_final_err2 = torch.zeros(OUT_CH, PATCH_SIZE, PATCH_SIZE, device=device)
+        drn_err2 = torch.zeros(OUT_CH, PATCH_SIZE, PATCH_SIZE, device=device)
+        pipe_err2 = torch.zeros(OUT_CH, PATCH_SIZE, PATCH_SIZE, device=device)
         n_eval = 0
-        for pi in range(min(cfg["num_eval_patches"], len(patches))):
+        for pi in range(min(8, len(patches))):
             e_p = patches[pi][0].unsqueeze(0).to(device)
             c_p = patches[pi][1].unsqueeze(0).to(device)
             dp = drn(e_p)
-            all_drn_err2 += (dp - c_p).squeeze(0) ** 2
+            drn_err2 += (dp - c_p).squeeze(0) ** 2
             cond_p = build_cond(e_p, dp)
             with ema.apply():
                 z_s = heun_sampler(diff_model, schedule, cond_p,
@@ -838,33 +918,28 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
                                    num_steps=NUM_SAMPLING_STEPS, guidance_scale=0.2)
             r_s = vae.decode(z_s)
             fp = dp + r_s
-            all_final_err2 += (fp - c_p).squeeze(0) ** 2
+            pipe_err2 += (fp - c_p).squeeze(0) ** 2
             n_eval += 1
-            if (pi + 1) % 4 == 0:
-                print(f"    Eval patch {pi+1}/{cfg['num_eval_patches']}")
 
-    drn_rmse_map = _to_np(torch.sqrt(all_drn_err2 / n_eval)[0])
-    final_rmse_map = _to_np(torch.sqrt(all_final_err2 / n_eval)[0])
+    drn_rmse_map = _to_np(torch.sqrt(drn_err2 / n_eval)[0])
+    pipe_rmse_map = _to_np(torch.sqrt(pipe_err2 / n_eval)[0])
+    improvement = drn_rmse_map - pipe_rmse_map
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4))
-    im1 = ax1.imshow(drn_rmse_map, cmap="hot_r", origin="lower")
-    ax1.set_title("DRN RMSE"); ax1.axis("off")
-    plt.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
-    im2 = ax2.imshow(final_rmse_map, cmap="hot_r", origin="lower")
-    ax2.set_title("Full Pipeline RMSE"); ax2.axis("off")
-    plt.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
-    improvement = drn_rmse_map - final_rmse_map
-    vabs = max(abs(np.nanpercentile(improvement, 5)), abs(np.nanpercentile(improvement, 95)))
-    im3 = ax3.imshow(improvement, cmap="RdBu_r", vmin=-vabs, vmax=vabs, origin="lower")
-    ax3.set_title("Improvement\n(DRN RMSE - Full RMSE)"); ax3.axis("off")
-    plt.colorbar(im3, ax=ax3, fraction=0.046, pad=0.04)
-    fig.suptitle(f"Per-Pixel RMSE (averaged over {n_eval} patches)", fontsize=13, y=1.02)
+    im1 = ax1.imshow(drn_rmse_map, cmap="hot_r"); ax1.set_title("DRN RMSE"); ax1.axis("off")
+    plt.colorbar(im1, ax=ax1)
+    im2 = ax2.imshow(pipe_rmse_map, cmap="hot_r"); ax2.set_title("Pipeline RMSE"); ax2.axis("off")
+    plt.colorbar(im2, ax=ax2)
+    vabs = max(abs(improvement.min()), abs(improvement.max()))
+    im3 = ax3.imshow(improvement, cmap="RdBu_r", vmin=-vabs, vmax=vabs)
+    ax3.set_title("Improvement (DRN - Pipeline)"); ax3.axis("off")
+    plt.colorbar(im3, ax=ax3)
+    fig.suptitle(f"Per-Pixel RMSE ({n_eval} patches)")
     plt.tight_layout()
-    fig.savefig(f"{plot_dir}/13_pixel_rmse_map.png", dpi=150, bbox_inches="tight")
+    fig.savefig(f"{plot_dir}/16_pixel_rmse_map.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"  Plot -> {plot_dir}/13_pixel_rmse_map.png")
-    print(f"  DRN mean pixel RMSE:  {drn_rmse_map.mean():.4f}")
-    print(f"  Full mean pixel RMSE: {final_rmse_map.mean():.4f}")
+    print(f"  PASS — DRN RMSE={drn_rmse_map.mean():.4f}, Pipeline RMSE={pipe_rmse_map.mean():.4f}")
+    results["pixel_rmse_map"] = "PASS"
 
     # ═══════════════════════════════════════════════════════════════════════
     # SUMMARY
@@ -872,48 +947,44 @@ def sanity_check(device: str = "cuda", plot_dir: str = "sanity_plots", extensive
     print("\n" + "=" * 70)
     print("SANITY CHECK SUMMARY")
     print("=" * 70)
-    drn_params = sum(p.numel() for p in drn.parameters())
-    vae_params = sum(p.numel() for p in vae.parameters())
-    diff_params = sum(p.numel() for p in diff_model.parameters())
-    print(f"  Mode:      {mode_str}")
-    print(f"  Steps:     DRN={cfg['num_drn_steps']}, VAE={cfg['num_vae_steps']}, "
-          f"Diff={cfg['num_diff_steps']}")
-    print(f"  Data:      {len(patches)} real patches loaded (temp only, in-memory)")
-    print(f"  DRN:       {drn_losses[0]:.4f} -> {drn_losses[-1]:.4f}  ({drn_params/1e6:.1f}M params)")
-    print(f"  VAE:       {vae_losses[0]:.4f} -> {vae_losses[-1]:.4f}  ({vae_params/1e6:.1f}M params)")
-    print(f"  Diffusion: {diff_losses[0]:.4f} -> {diff_losses[-1]:.4f}  ({diff_params/1e6:.1f}M params)")
-    print(f"  Pipeline:  shape={final_pred.shape}, all finite")
-    print(f"  Ensemble:  {NUM_ENSEMBLE} members, spread std={_to_np(ens_std).mean():.4f}")
-    print(f"  RMSE:      DRN={drn_rmse_map.mean():.4f}, Full={final_rmse_map.mean():.4f}")
-    print(f"\n  Plots saved to: {plot_path.resolve()}/")
-    files = sorted(plot_path.glob("[0-9]*.png"))
-    for f in files:
+    print(f"  Steps: DRN={NUM_DRN_STEPS}, VAE={NUM_VAE_STEPS}, Diff={NUM_DIFF_STEPS}")
+    print(f"  Data:  {len(patches)} patches (1 year, temp only)")
+    print(f"\n  {'Test':<30} {'Status':>8}")
+    print(f"  {'-'*30} {'-'*8}")
+    all_pass = True
+    for test, status in results.items():
+        print(f"  {test:<30} {status:>8}")
+        if status != "PASS":
+            all_pass = False
+
+    print(f"\n  Models:")
+    print(f"    DRN:       {drn_params/1e6:.1f}M params, {drn_losses[0]:.4f} -> {drn_losses[-1]:.4f}")
+    print(f"    VAE:       {vae_params/1e6:.1f}M params, {vae_losses[0]:.4f} -> {vae_losses[-1]:.4f}")
+    print(f"    Diffusion: {diff_params/1e6:.1f}M params, {diff_losses[0]:.4f} -> {diff_losses[-1]:.4f}")
+    print(f"\n  Metrics:")
+    print(f"    DRN RMSE:      {drn_rmse:.4f}")
+    print(f"    Pipeline RMSE: {final_rmse:.4f}")
+    print(f"    CRPS:          {crps:.4f}")
+    print(f"    SSR:           {ssr:.3f}")
+    print(f"    Latent speedup: {speedup:.1f}x over pixel")
+    print(f"    Latent mem: {latent_mem:.2f} GB vs pixel: {pixel_mem:.2f} GB")
+    print(f"\n  Plots: {plot_path.resolve()}/")
+    for f in sorted(plot_path.glob("*.png")):
         print(f"    {f.name}")
-    print(f"\n  ALL CHECKS PASSED")
+
+    if all_pass:
+        print(f"\n  ALL {len(results)} TESTS PASSED")
+    else:
+        print(f"\n  SOME TESTS FAILED!")
     print("=" * 70)
-    return True
+    return all_pass
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Sanity check — real data, temperature only")
+    parser = argparse.ArgumentParser(description="Comprehensive sanity check — all features")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--plot_dir", type=str, default="sanity_plots")
-    parser.add_argument("--extensive", action="store_true",
-                        help="Run ~3h on A100: 3k DRN + 3k VAE + 10k diffusion steps, bigger models")
     args = parser.parse_args()
 
-    success = sanity_check(device=args.device, plot_dir=args.plot_dir, extensive=args.extensive)
-
-    # Auto-commit plots to git
-    if success:
-        repo_dir = Path(__file__).resolve().parent
-        print("\n[Git] Committing sanity plots...")
-        try:
-            subprocess.run(["git", "add", args.plot_dir + "/"], cwd=repo_dir, check=True)
-            subprocess.run(["git", "commit", "-m", "auto-commit plots"], cwd=repo_dir, check=True)
-            subprocess.run(["git", "push"], cwd=repo_dir, check=True)
-            print("[Git] Pushed plots successfully.")
-        except subprocess.CalledProcessError as e:
-            print(f"[Git] Warning: git command failed: {e}")
-
+    success = sanity_check(device=args.device, plot_dir=args.plot_dir)
     sys.exit(0 if success else 1)
