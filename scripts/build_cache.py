@@ -193,15 +193,19 @@ def main():
     regridder = ERA5Regridder(era5_lat, era5_lon, conus_lat, conus_lon)
     print("Regridder ready.\n")
 
-    # Build static fields
-    print("Building static fields...")
-    era5_ds_static = xr.open_dataset(data_dir / "era5_1980.nc")
-    conus_ds_static = xr.open_dataset(data_dir / "conus404_yearly_1980.nc")
-    static = build_static_fields(conus_ds_static, era5_ds_static, conus_lat, conus_lon, regridder)
-    np.save(output_dir / "static_fields.npy", static)
-    print(f"  Saved static_fields.npy {static.shape}")
-    era5_ds_static.close()
-    conus_ds_static.close()
+    # Build static fields (skip if already exists from another job)
+    static_path = output_dir / "static_fields.npy"
+    if static_path.exists():
+        print(f"Static fields already exist at {static_path}, skipping.")
+    else:
+        print("Building static fields...")
+        era5_ds_static = xr.open_dataset(data_dir / "era5_1980.nc")
+        conus_ds_static = xr.open_dataset(data_dir / "conus404_yearly_1980.nc")
+        static = build_static_fields(conus_ds_static, era5_ds_static, conus_lat, conus_lon, regridder)
+        np.save(static_path, static)
+        print(f"  Saved static_fields.npy {static.shape}")
+        era5_ds_static.close()
+        conus_ds_static.close()
 
     # Process each year
     all_nan_days = {}
@@ -222,8 +226,15 @@ def main():
         conus_size = (output_dir / f"conus_{year}.npy").stat().st_size / 1e9
         print(f"  era5_{year}.npy: {era5_size:.2f} GB, conus_{year}.npy: {conus_size:.2f} GB")
 
-    # Save NaN days
-    with open(output_dir / "nan_days.json", "w") as f:
+    # Save NaN days (merge with existing if another job wrote some)
+    nan_days_path = output_dir / "nan_days.json"
+    if nan_days_path.exists():
+        with open(nan_days_path) as f:
+            existing = json.load(f)
+        for k, v in all_nan_days.items():
+            existing[str(k)] = v
+        all_nan_days = existing
+    with open(nan_days_path, "w") as f:
         json.dump(all_nan_days, f)
     print(f"\nSaved nan_days.json ({sum(len(v) for v in all_nan_days.values())} total NaN days)")
 
