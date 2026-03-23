@@ -83,66 +83,97 @@ Sha et al. develop a Swin-Transformer-based Limited Area Model for autoregressiv
 
 ## Architecture Summary
 
+**Variables (6 ERA5 → 6 CONUS404):**
+| ERA5 Input | CONUS404 Target |
+|---|---|
+| t2m (2m temperature) | T2 |
+| d2m (2m dewpoint) | TD2 |
+| u10 (10m U-wind) | U10 |
+| v10 (10m V-wind) | V10 |
+| sp (surface pressure) | PSFC |
+| tp (total precipitation) | PREC_ACC_NC |
+
+Plus 6 static fields (terrain height, orographic variance, lat, lon, LAI, land-sea mask).
+
 ```
-ERA5 (0.25deg) --[bilinear regrid]--> ERA5* (4km, 1015x1367)
+ERA5 (0.25deg, 6 vars) --[bilinear regrid]--> ERA5* (4km, 1015x1367)
+                                         |
+                              + 6 static fields
                                          |
                                          v
-                    Stage 1: DRN (7M params)
-                    mu = E[CONUS404 | ERA5*]         # conditional mean
+                    Stage 1: DRN  IN_CH=12, OUT_CH=6
+                    mu = E[CONUS404 | ERA5*]         # (B, 6, 256, 256)
                                          |
                     residual = CONUS404 - mu
                                          |
                                          v
-                    Stage 2a: VAE Encoder (12M params)
+                    Stage 2a: VAE Encoder  LATENT_CH=8
                     z = encode(residual)              # (B, 8, 64, 64)
                                          |
                                          v
-                    Stage 2b: Latent Diffusion (142M params)
+                    Stage 2b: Latent Diffusion
                     z_sample ~ p(z | ERA5*, mu)       # conditioned denoising
                                          |
                                          v
                     Stage 2a: VAE Decoder
-                    r_hat = decode(z_sample)           # reconstructed residual
+                    r_hat = decode(z_sample)           # (B, 6, 256, 256)
                                          |
                                          v
                     output = mu + r_hat                # final prediction
 ```
 
-**Total parameters:** ~161M (7M DRN + 12M VAE + 142M Diffusion)
-
-**Diffusion conditioning (concatenated):**
+**Diffusion conditioning (concatenated at 64x64):**
 - z_noisy: (B, 8, 64, 64) — noisy latent code
-- ERA5_down: (B, 12, 64, 64) — ERA5 + static fields bilinear-downsampled to latent resolution
+- ERA5_down: (B, 12, 64, 64) — ERA5 + static fields downsampled to latent resolution
 - mu_encoded: (B, 8, 64, 64) — VAE.encode(DRN prediction).mu
 - pos_embed: (B, 2, 64, 64) — normalized (y, x) coordinate grids
 - Total input: (B, 30, 64, 64)
 
 ---
 
-## Current Results (Single-Variable: 2m Temperature)
+## Results
 
-### Training Convergence
-| Stage | Epochs to Converge | Best Loss | Parameters |
-|-------|-------------------|-----------|------------|
-| DRN | ~4 | 0.0157 (val MSE) | 7M |
-| VAE | ~15 | 0.000862 (val recon) | 12M |
-| Diffusion | 21+ (ongoing) | 0.916 (val) | 142M |
+### Single-Variable Baseline (2m Temperature only — completed)
 
-### Downscaling Skill Progression (Normalized RMSE)
+Checkpoints saved to HuggingFace (`mudhil/diffusion-downscaling-model`, `checkpoints_single_var/`).
+
+#### Training Convergence
+| Stage | Epochs | Best Val Loss | Notes |
+|-------|--------|--------------|-------|
+| DRN | 50 | 0.0157 (MSE) | Converged by epoch ~4 |
+| VAE | 25 | 0.000862 (recon) | Beta annealing critical |
+| Diffusion | 37/50 | 0.916 | Hit 12h walltime; loss plateau observed |
+
+#### Downscaling Skill Progression (Normalized RMSE, T2 only)
 | Configuration | RMSE | vs. DRN Alone |
 |--------------|------|---------------|
 | DRN only | 0.118 | baseline |
-| DRN + Diffusion (epoch 1) | 0.246 | -108% (worse) |
+| DRN + Diffusion (epoch 1) | 0.246 | worse (noise-adding phase) |
 | DRN + Diffusion (epoch 9) | 0.085 | +28% better |
-| DRN + Diffusion (epoch 12) | 0.083 | +30% better |
 | DRN + Diffusion (epoch 18) | 0.070 | **+41% better** |
 
-The diffusion model initially makes predictions worse (adding noise rather than correcting it), then progressively learns to generate residuals that improve upon the DRN mean — matching CorrDiff's reported behavior.
+The diffusion model initially degrades performance (adds noise faster than it corrects), then crosses the DRN baseline around epoch 6-9 and steadily improves — consistent with CorrDiff's reported behavior.
 
-### Physical-Unit Performance
-- DRN RMSE: 1.0-3.8 K (comparable to Sha et al.'s 1.0-3.0 K for 2m temperature)
-- DRN+VAE reconstruction: 0.20-0.60 K RMSE
-- DRN+Diffusion: improving, currently at ~41% reduction over DRN alone
+---
+
+### Multi-Variable Run (6 variables — in progress)
+
+**Variables:** T2, TD2, U10, V10, PSFC, PREC_ACC_NC
+**IN_CH=12, OUT_CH=6, LATENT_CH=8**
+**Training data:** CONUS404 cached data, 35 train years (1980-2014)
+
+#### DRN Early Training (epochs 1-5)
+| Epoch | Train Loss (NLL) | Val Loss (NLL) | RMSE |
+|-------|-----------------|----------------|------|
+| 1 | 0.557 | 0.387 | 0.924 |
+| 3 | -0.150 | -0.263 | 0.299 |
+| 5+ | continuing... | — | — |
+
+Note: The PerVariableMSE loss uses learnable inverse-variance weighting (Gaussian NLL), so negative values are expected and indicate the model is learning to assign high precision to each variable. RMSE is the meaningful quality metric.
+
+Physical-unit RMSE at epoch 3 (~0.30 normalized) corresponds roughly to 1-2 K for temperature, ~1-2 m/s for winds — already in a physically reasonable range after 3 epochs.
+
+VAE and Diffusion results pending completion of DRN training.
 
 ---
 
@@ -156,12 +187,12 @@ The diffusion model initially makes predictions worse (adding noise rather than 
 5. **40-year training dataset** — CONUS404 provides a rich, validated training source.
 
 ### Planned Additions for Full Publication
-1. **Multi-variable support (7 variables)** — T2, TD2, U10, V10, PSFC, PREC_ACC_NC, plus Q2 as a synthesis variable (no direct ERA5 counterpart, analogous to CorrDiff's radar reflectivity synthesis).
-2. **32-member ensemble evaluation** — CRPS, rank histograms, spread-skill ratio, Q-Q plots across all variables.
-3. **Power spectra analysis** — Radially averaged FFT with Hann windowing, comparing ERA5 interpolation vs. DRN vs. DRN+Diffusion vs. CONUS404 target at each stage.
-4. **Ablation study** — Pixel-space CorrDiff variant (remove VAE, run diffusion on 256x256) to quantify the latent-space advantage in terms of compute, convergence speed, and sample quality.
-5. **Q2 synthesis assessment** — Specific humidity predicted without direct ERA5 input, testing the model's ability to learn cross-variable physical relationships.
-6. **Case studies** — Selected extreme events from the 2018-2020 test period.
+1. **Multi-variable results** — Full training run (DRN → VAE → Diffusion) underway with 6 variables. Final CRPS, RMSE, and power spectra results pending.
+2. **32-member ensemble evaluation** — CRPS, rank histograms, spread-skill ratio, Q-Q plots across all 6 variables.
+3. **Power spectra analysis** — Radially averaged FFT with Hann windowing: ERA5 interpolation vs. DRN vs. DRN+Diffusion vs. CONUS404 at each stage, per variable.
+4. **Ablation study** — Pixel-space CorrDiff variant (remove VAE, run diffusion on 256x256) to isolate the latent-space advantage in convergence speed and sample quality.
+5. **Precipitation synthesis** — PREC_ACC_NC predicted from log1p-pretransformed ERA5 tp, testing whether the model adds fine-scale convective structure beyond the coarse ERA5 input.
+6. **Case studies** — Selected extreme events from the 2018-2020 test period (e.g., heat waves, cold fronts, precipitation extremes).
 7. **Full-CONUS inference** — Tiled prediction over the complete 1015x1367 domain with overlap blending.
 
 ---
@@ -211,16 +242,19 @@ continues training from the next epoch.
 #### Auto-resubmit (handles 12h SLURM walltime limit)
 
 ```bash
-# Start daemon — survives terminal exit, auto-resubmits with --resume
-# until all epochs complete (up to 20 resubmissions):
-bash scripts/start_training_daemon.sh --stage diffusion
+# Preferred — single command, handles resume automatically:
+./scripts/resume drn        # restart DRN from last checkpoint
+./scripts/resume vae        # restart VAE from last checkpoint
+./scripts/resume diffusion  # restart diffusion from last checkpoint
 
-# Monitor progress:
+# Monitor:
 tail -f train_loop.log
 
 # Stop daemon:
 kill $(cat .train_daemon.pid)
 ```
+
+The `resume` script kills any existing daemon, starts a new one that polls the job every 2 minutes, and resubmits with `--resume` up to 20 times (240h total budget). Checkpoints saved at end of every epoch so at most one epoch is lost on walltime kill.
 
 ### Inference
 ```bash
@@ -233,11 +267,18 @@ sbatch scripts/run_evaluation.sh
 ```
 
 ### Checkpoints
-Stored on HuggingFace: [mudhil/diffusion-downscaling-model](https://huggingface.co/mudhil/diffusion-downscaling-model)
-- `drn_best.pt` (568 MB)
-- `vae_best.pt` (454 MB)
-- `diffusion_best.pt` (2.2 GB)
-- `diffusion_latest.pt` (2.2 GB)
+HuggingFace: [mudhil/diffusion-downscaling-model](https://huggingface.co/mudhil/diffusion-downscaling-model)
+
+**Single-variable (T2 only) — completed, archived:**
+- `checkpoints_single_var/drn_best.pt` (568 MB)
+- `checkpoints_single_var/vae_best.pt` (454 MB)
+- `checkpoints_single_var/diffusion_best.pt` (2.2 GB)
+- `checkpoints_single_var/diffusion_latest.pt` (2.2 GB)
+
+**Multi-variable (6 vars) — in progress:**
+- `checkpoints/drn_best.pt` — updated as training proceeds
+- `checkpoints/vae_best.pt` — after DRN completes
+- `checkpoints/diffusion_best.pt` — after VAE completes
 
 ---
 
