@@ -71,6 +71,8 @@ def train_drn(
             best_val_loss = ckpt.get("best_val_loss", ckpt.get("val_loss", float("inf")))
             if "scheduler_state_dict" in ckpt:
                 scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+            if "criterion_state_dict" in ckpt and hasattr(criterion, "load_state_dict"):
+                criterion.load_state_dict(ckpt["criterion_state_dict"])
             if "train_losses" in ckpt:
                 all_train_losses = ckpt["train_losses"]
             if "val_losses" in ckpt:
@@ -117,10 +119,12 @@ def train_drn(
 
         print(f"[DRN] Epoch {epoch+1}/{epochs} | Train: {avg_train:.6f} | Val: {avg_val:.6f}")
 
+        criterion_state = criterion.state_dict() if hasattr(criterion, "state_dict") else None
+
         # Save best checkpoint
         if avg_val < best_val_loss:
             best_val_loss = avg_val
-            torch.save({
+            ckpt_dict = {
                 "epoch": epoch,
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
@@ -129,10 +133,13 @@ def train_drn(
                 "best_val_loss": best_val_loss,
                 "train_losses": all_train_losses,
                 "val_losses": all_val_losses,
-            }, ckpt_dir / "drn_best.pt")
+            }
+            if criterion_state is not None:
+                ckpt_dict["criterion_state_dict"] = criterion_state
+            torch.save(ckpt_dict, ckpt_dir / "drn_best.pt")
 
         # Always save latest (for resuming)
-        torch.save({
+        ckpt_dict = {
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
@@ -141,7 +148,10 @@ def train_drn(
             "best_val_loss": best_val_loss,
             "train_losses": all_train_losses,
             "val_losses": all_val_losses,
-        }, ckpt_dir / "drn_latest.pt")
+        }
+        if criterion_state is not None:
+            ckpt_dict["criterion_state_dict"] = criterion_state
+        torch.save(ckpt_dict, ckpt_dir / "drn_latest.pt")
 
         # Periodic eval plots
         if (epoch + 1) % eval_every == 0 or epoch == 0:
