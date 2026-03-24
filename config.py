@@ -10,6 +10,9 @@ LON_MIN, LON_MAX = -125, -66
 
 # ─── Variable pairs: ERA5 name → CONUS404 name ──────────────────────────────
 # Only temperature for now — uncomment lines below to add more variables.
+
+
+# TODO: add LAI
 VARIABLE_PAIRS = {
     "t2m": "T2",
     "d2m": "TD2",
