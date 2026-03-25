@@ -15,9 +15,8 @@
 # ──────────────────────────────────────────────────────────────────────
 # Multi-GPU training: DRN → VAE → Diffusion
 #
-# Allocation: 3 nodes × 4 A100s = 12 GPUs total.
-# torchrun spawns SLURM_NTASKS_PER_NODE processes per node (one per GPU).
-# World size and GPU counts are inferred automatically from SLURM env vars.
+# Allocation: 1 node × 4 A100s = 4 GPUs (alla100 QOS, max gres/gpu=4).
+# torchrun spawns SLURM_NTASKS_PER_NODE processes (one per GPU).
 #
 # Usage (via sbatch):
 #   sbatch scripts/run_training.sh --stage drn
