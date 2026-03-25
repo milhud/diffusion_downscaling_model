@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 #SBATCH -J train_do
 #SBATCH --partition=gpu_a100
-#SBATCH --nodes=3
+#SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:4
@@ -38,20 +38,13 @@ done
 module purge
 module load python/GEOSpyD/24.3.0-0/3.12
 
-# Multi-node NCCL rendezvous
-export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n1)
-export MASTER_PORT=29500
 export NCCL_DEBUG=WARN
 export OMP_NUM_THREADS=8
 
-echo "Master: $MASTER_ADDR  Nodes: $SLURM_NNODES  GPUs/node: $SLURM_NTASKS_PER_NODE"
+echo "Node: $(hostname)  GPUs/node: $SLURM_NTASKS_PER_NODE"
 
 torchrun \
-    --nnodes="$SLURM_NNODES" \
     --nproc_per_node="$SLURM_NTASKS_PER_NODE" \
-    --rdzv_backend=c10d \
-    --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
-    --rdzv_id="$SLURM_JOB_ID" \
     train.py \
     --data_dir data \
     --checkpoint_dir checkpoints \
