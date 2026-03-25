@@ -1,6 +1,8 @@
 """Stage 2a: VAE training loop with beta annealing."""
 
 import torch
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from pathlib import Path
 
@@ -23,6 +25,10 @@ def train_vae(
     checkpoint_dir: str = "checkpoints",
     log_interval: int = 50,
     resume: bool = False,
+    rank: int = 0,
+    local_rank: int = 0,
+    world_size: int = 1,
+    train_sampler=None,
 ):
     """Train VAE on residuals (CONUS404 - DRN prediction).
 
@@ -32,13 +38,18 @@ def train_vae(
     Args:
         resume: If True, load from vae_latest.pt and continue training.
     """
-    vae = vae.to(device)
-    drn = drn.to(device).eval()
+    is_main = rank == 0
+
+    drn = drn.eval()
     for p in drn.parameters():
         p.requires_grad_(False)
 
+    if world_size > 1:
+        vae = DDP(vae, device_ids=[local_rank], output_device=local_rank)
+    raw_vae = vae.module if world_size > 1 else vae
+
     criterion = VAELoss()
-    optimizer = torch.optim.AdamW(vae.parameters(), lr=lr, weight_decay=1e-5)
+    optimizer = torch.optim.AdamW(vae.parameters(), lr=lr * world_size, weight_decay=1e-5)
     warmup_sched = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=1e-3, total_iters=warmup_epochs)
     cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -60,18 +71,23 @@ def train_vae(
         ckpt_path = ckpt_dir / "vae_latest.pt"
         if ckpt_path.exists():
             ckpt = torch.load(ckpt_path, map_location=device)
-            vae.load_state_dict(ckpt["model_state_dict"])
+            raw_vae.load_state_dict(ckpt["model_state_dict"])
             optimizer.load_state_dict(ckpt["optimizer_state_dict"])
             start_epoch = ckpt["epoch"] + 1
             best_val_loss = ckpt.get("best_val_loss", ckpt.get("val_loss", float("inf")))
             global_step = ckpt.get("global_step", start_epoch * max(len(train_loader), 1))
             if "scheduler_state_dict" in ckpt:
                 scheduler.load_state_dict(ckpt["scheduler_state_dict"])
-            print(f"[VAE] Resumed from epoch {start_epoch} (best_val={best_val_loss:.6f})")
+            if is_main:
+                print(f"[VAE] Resumed from epoch {start_epoch} (best_val={best_val_loss:.6f})")
         else:
-            print(f"[VAE] No checkpoint at {ckpt_path}, starting from scratch")
+            if is_main:
+                print(f"[VAE] No checkpoint at {ckpt_path}, starting from scratch")
 
     for epoch in range(start_epoch, epochs):
+        if train_sampler is not None:
+            train_sampler.set_epoch(epoch)
+
         vae.train()
         epoch_loss = 0.0
         epoch_recon = 0.0
@@ -103,7 +119,7 @@ def train_vae(
             epoch_recon += recon_l.item()
             epoch_kl += kl_l.item()
 
-            if step % log_interval == 0:
+            if is_main and step % log_interval == 0:
                 print(f"  [VAE] Epoch {epoch+1}, Step {step}, Loss: {loss.item():.6f} "
                       f"(recon: {recon_l.item():.6f}, KL: {kl_l.item():.6f}, beta: {beta:.2e})")
 
@@ -111,9 +127,10 @@ def train_vae(
         n = max(len(train_loader), 1)
         avg_train = epoch_loss / n
 
-        # Validation
+        # Validation — aggregate across all ranks
         vae.eval()
-        val_loss = 0.0
+        val_loss = torch.tensor(0.0, device=device)
+        val_count = torch.tensor(0, device=device)
         with torch.no_grad():
             for era5, conus in val_loader:
                 era5 = era5.to(device)
@@ -122,32 +139,36 @@ def train_vae(
                 residual = conus - drn_pred
                 recon, mu, logvar = vae(residual)
                 loss, _, _ = criterion(recon, residual, mu, logvar, beta=beta)
-                val_loss += loss.item()
-        avg_val = val_loss / max(len(val_loader), 1)
+                val_loss += loss
+                val_count += 1
+        if world_size > 1:
+            dist.all_reduce(val_loss, op=dist.ReduceOp.SUM)
+            dist.all_reduce(val_count, op=dist.ReduceOp.SUM)
+        avg_val = (val_loss / val_count.clamp(min=1)).item()
 
-        print(f"[VAE] Epoch {epoch+1}/{epochs} | Train: {avg_train:.6f} | Val: {avg_val:.6f} | beta: {beta:.2e}")
+        if is_main:
+            print(f"[VAE] Epoch {epoch+1}/{epochs} | Train: {avg_train:.6f} | Val: {avg_val:.6f} | beta: {beta:.2e}")
 
-        if avg_val < best_val_loss:
-            best_val_loss = avg_val
+            if avg_val < best_val_loss:
+                best_val_loss = avg_val
+                torch.save({
+                    "epoch": epoch,
+                    "model_state_dict": raw_vae.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scheduler_state_dict": scheduler.state_dict(),
+                    "val_loss": avg_val,
+                    "best_val_loss": best_val_loss,
+                    "global_step": global_step,
+                }, ckpt_dir / "vae_best.pt")
+
             torch.save({
                 "epoch": epoch,
-                "model_state_dict": vae.state_dict(),
+                "model_state_dict": raw_vae.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "scheduler_state_dict": scheduler.state_dict(),
                 "val_loss": avg_val,
                 "best_val_loss": best_val_loss,
                 "global_step": global_step,
-            }, ckpt_dir / "vae_best.pt")
+            }, ckpt_dir / "vae_latest.pt")
 
-        # Always save latest (for resuming)
-        torch.save({
-            "epoch": epoch,
-            "model_state_dict": vae.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "scheduler_state_dict": scheduler.state_dict(),
-            "val_loss": avg_val,
-            "best_val_loss": best_val_loss,
-            "global_step": global_step,
-        }, ckpt_dir / "vae_latest.pt")
-
-    return vae
+    return raw_vae

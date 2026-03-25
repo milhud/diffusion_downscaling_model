@@ -9,7 +9,7 @@ Run preprocess_cache.py first to generate cached data.
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, DistributedSampler
 import xarray as xr
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -341,6 +341,8 @@ def build_dataloaders(
     era5_vars: list = None,
     conus_vars: list = None,
     cache_dir: str = None,
+    rank: int = 0,
+    world_size: int = 1,
     # Legacy params (ignored when using cache)
     regridder: ERA5Regridder = None,
     conus_lat: np.ndarray = None,
@@ -349,7 +351,12 @@ def build_dataloaders(
     """Build train and val DataLoaders.
 
     Uses CachedDownscalingDataset if cache_dir exists, otherwise falls back
-    to on-the-fly DownscalingDataset.
+    to on-the-fly DownscalingDataset.  When world_size > 1, uses
+    DistributedSampler so each GPU sees a non-overlapping data shard.
+
+    Returns (train_dl, val_dl, train_sampler).
+    train_sampler is None for single-GPU; call set_epoch(epoch) each epoch
+    when it is not None.
     """
     if train_years is None:
         train_years = list(range(1980, 2015))
@@ -361,7 +368,8 @@ def build_dataloaders(
                  and (Path(cache_dir) / "static_fields.npy").exists())
 
     if use_cache:
-        print(f"[Data] Using cached data from {cache_dir}")
+        if rank == 0:
+            print(f"[Data] Using cached data from {cache_dir}")
         DatasetClass = CachedDownscalingDataset
         common_kwargs = dict(
             cache_dir=cache_dir,
@@ -376,7 +384,8 @@ def build_dataloaders(
                                 **common_kwargs)
         val_ds = DatasetClass(years=val_years, patches_per_day=1, **common_kwargs)
     else:
-        print(f"[Data] WARNING: No cache found at {cache_dir}, using slow on-the-fly loading")
+        if rank == 0:
+            print(f"[Data] WARNING: No cache found at {cache_dir}, using slow on-the-fly loading")
         train_ds = DownscalingDataset(
             data_dir, train_years, norm_stats, patch_size,
             patches_per_day=patches_per_day,
@@ -392,8 +401,23 @@ def build_dataloaders(
             era5_vars=era5_vars, conus_vars=conus_vars,
         )
 
-    train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
-                          num_workers=num_workers, pin_memory=True, drop_last=True)
-    val_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=False,
-                        num_workers=num_workers, pin_memory=True)
-    return train_dl, val_dl
+    if world_size > 1:
+        train_sampler = DistributedSampler(
+            train_ds, num_replicas=world_size, rank=rank,
+            shuffle=True, drop_last=True,
+        )
+        val_sampler = DistributedSampler(
+            val_ds, num_replicas=world_size, rank=rank, shuffle=False,
+        )
+        train_dl = DataLoader(train_ds, batch_size=batch_size, sampler=train_sampler,
+                              num_workers=num_workers, pin_memory=True, drop_last=True)
+        val_dl = DataLoader(val_ds, batch_size=batch_size, sampler=val_sampler,
+                            num_workers=num_workers, pin_memory=True)
+    else:
+        train_sampler = None
+        train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
+                              num_workers=num_workers, pin_memory=True, drop_last=True)
+        val_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=False,
+                            num_workers=num_workers, pin_memory=True)
+
+    return train_dl, val_dl, train_sampler

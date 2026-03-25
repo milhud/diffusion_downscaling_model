@@ -80,6 +80,10 @@ def train_diffusion(
     cosine_restart_period: int = 0,
     p_mean: float = -1.2,
     p_std: float = 1.2,
+    rank: int = 0,
+    local_rank: int = 0,
+    world_size: int = 1,
+    train_sampler=None,
 ):
     """Train the conditional diffusion UNet in VAE latent space.
 
@@ -93,17 +97,24 @@ def train_diffusion(
         p_std: EDM noise schedule log-normal std. Smaller values concentrate
             training around the mean noise level.
     """
-    diff_model = diff_model.to(device)
-    drn = drn.to(device).eval()
-    vae = vae.to(device).eval()
+    import torch.distributed as dist
+    from torch.nn.parallel import DistributedDataParallel as DDP
+    is_main = rank == 0
+
+    drn = drn.eval()
+    vae = vae.eval()
     for p in drn.parameters():
         p.requires_grad_(False)
     for p in vae.parameters():
         p.requires_grad_(False)
 
+    if world_size > 1:
+        diff_model = DDP(diff_model, device_ids=[local_rank], output_device=local_rank)
+    raw_model = diff_model.module if world_size > 1 else diff_model
+
     schedule = EDMSchedule(p_mean=p_mean, p_std=p_std)
-    ema = EMA(diff_model, decay=ema_decay)
-    optimizer = torch.optim.AdamW(diff_model.parameters(), lr=lr, weight_decay=1e-5)
+    ema = EMA(raw_model, decay=ema_decay)
+    optimizer = torch.optim.AdamW(diff_model.parameters(), lr=lr * world_size, weight_decay=1e-5)
     warmup_sched = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=1e-3, total_iters=warmup_epochs)
     if cosine_restart_period > 0:
@@ -115,10 +126,11 @@ def train_diffusion(
     scheduler = torch.optim.lr_scheduler.SequentialLR(
         optimizer, schedulers=[warmup_sched, cosine_sched], milestones=[warmup_epochs])
 
-    print(f"  [Diff] Noise schedule: p_mean={p_mean}, p_std={p_std}")
-    print(f"  [Diff] Grad accumulation: {grad_accum} (effective batch={train_loader.batch_size * grad_accum})")
-    if cosine_restart_period > 0:
-        print(f"  [Diff] Cosine warm restarts: T_0={cosine_restart_period} epochs")
+    if is_main:
+        print(f"  [Diff] Noise schedule: p_mean={p_mean}, p_std={p_std}")
+        print(f"  [Diff] Grad accumulation: {grad_accum} (effective batch={train_loader.batch_size * grad_accum})")
+        if cosine_restart_period > 0:
+            print(f"  [Diff] Cosine warm restarts: T_0={cosine_restart_period} epochs")
 
     ckpt_dir = Path(checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -136,7 +148,7 @@ def train_diffusion(
         ckpt_path = ckpt_dir / "diffusion_latest.pt"
         if ckpt_path.exists():
             ckpt = torch.load(ckpt_path, map_location=device)
-            diff_model.load_state_dict(ckpt["model_state_dict"])
+            raw_model.load_state_dict(ckpt["model_state_dict"])
             optimizer.load_state_dict(ckpt["optimizer_state_dict"])
             if "ema_state_dict" in ckpt:
                 ema.load_state_dict(ckpt["ema_state_dict"])
@@ -148,14 +160,19 @@ def train_diffusion(
                 all_train_losses = ckpt["train_losses"]
             if "val_losses" in ckpt:
                 all_val_losses = ckpt["val_losses"]
-            print(f"[Diff] Resumed from epoch {start_epoch} (best_val={best_val_loss:.6f})")
+            if is_main:
+                print(f"[Diff] Resumed from epoch {start_epoch} (best_val={best_val_loss:.6f})")
         else:
-            print(f"[Diff] No checkpoint at {ckpt_path}, starting from scratch")
+            if is_main:
+                print(f"[Diff] No checkpoint at {ckpt_path}, starting from scratch")
 
     # Grab fixed eval batch
     eval_era5, eval_conus = next(iter(val_loader))
 
     for epoch in range(start_epoch, epochs):
+        if train_sampler is not None:
+            train_sampler.set_epoch(epoch)
+
         diff_model.train()
         epoch_loss = 0.0
         optimizer.zero_grad()
@@ -188,7 +205,7 @@ def train_diffusion(
                 ema.update()
                 optimizer.zero_grad()
 
-            if step % log_interval == 0:
+            if is_main and step % log_interval == 0:
                 cur_lr = optimizer.param_groups[0]['lr']
                 print(f"  [Diff] Epoch {epoch+1}, Step {step}, Loss: {loss.item():.6f}, LR: {cur_lr:.2e}")
 
@@ -202,9 +219,10 @@ def train_diffusion(
         scheduler.step()
         avg_train = epoch_loss / max(len(train_loader), 1)
 
-        # Validation
+        # Validation — aggregate across all ranks
         diff_model.eval()
-        val_loss = 0.0
+        val_loss = torch.tensor(0.0, device=device)
+        val_count = torch.tensor(0, device=device)
         with torch.no_grad():
             for era5, conus in val_loader:
                 era5 = era5.to(device)
@@ -215,18 +233,36 @@ def train_diffusion(
                 z_clean = vae.reparameterize(mu, logvar)
                 cond = _build_diffusion_cond(era5, drn_pred, vae, pos_emb, p_uncond=0)
                 loss = edm_training_loss(diff_model, schedule, z_clean, cond)
-                val_loss += loss.item()
-        avg_val = val_loss / max(len(val_loader), 1)
+                val_loss += loss
+                val_count += 1
+        if world_size > 1:
+            dist.all_reduce(val_loss, op=dist.ReduceOp.SUM)
+            dist.all_reduce(val_count, op=dist.ReduceOp.SUM)
+        avg_val = (val_loss / val_count.clamp(min=1)).item()
         all_val_losses.append(avg_val)
 
-        print(f"[Diff] Epoch {epoch+1}/{epochs} | Train: {avg_train:.6f} | Val: {avg_val:.6f}")
+        if is_main:
+            print(f"[Diff] Epoch {epoch+1}/{epochs} | Train: {avg_train:.6f} | Val: {avg_val:.6f}")
 
-        # Save best checkpoint
-        if avg_val < best_val_loss:
-            best_val_loss = avg_val
+            # Save best checkpoint
+            if avg_val < best_val_loss:
+                best_val_loss = avg_val
+                torch.save({
+                    "epoch": epoch,
+                    "model_state_dict": raw_model.state_dict(),
+                    "ema_state_dict": ema.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scheduler_state_dict": scheduler.state_dict(),
+                    "val_loss": avg_val,
+                    "best_val_loss": best_val_loss,
+                    "train_losses": all_train_losses,
+                    "val_losses": all_val_losses,
+                }, ckpt_dir / "diffusion_best.pt")
+
+            # Always save latest (for resuming)
             torch.save({
                 "epoch": epoch,
-                "model_state_dict": diff_model.state_dict(),
+                "model_state_dict": raw_model.state_dict(),
                 "ema_state_dict": ema.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "scheduler_state_dict": scheduler.state_dict(),
@@ -234,35 +270,22 @@ def train_diffusion(
                 "best_val_loss": best_val_loss,
                 "train_losses": all_train_losses,
                 "val_losses": all_val_losses,
-            }, ckpt_dir / "diffusion_best.pt")
+            }, ckpt_dir / "diffusion_latest.pt")
 
-        # Always save latest (for resuming)
-        torch.save({
-            "epoch": epoch,
-            "model_state_dict": diff_model.state_dict(),
-            "ema_state_dict": ema.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "scheduler_state_dict": scheduler.state_dict(),
-            "val_loss": avg_val,
-            "best_val_loss": best_val_loss,
-            "train_losses": all_train_losses,
-            "val_losses": all_val_losses,
-        }, ckpt_dir / "diffusion_latest.pt")
+            # Periodic eval plots
+            if (epoch + 1) % eval_every == 0 or epoch == 0:
+                _eval_diffusion(
+                    raw_model, drn, vae, ema, schedule, pos_emb,
+                    eval_era5, eval_conus, plot_dir, epoch + 1,
+                    latent_ch=latent_ch, device=device,
+                )
+                plot_loss_curves(
+                    {"Diff Train Loss (per step)": all_train_losses,
+                     "Diff Val Loss (per epoch)": all_val_losses},
+                    f"{plot_dir}/diff_loss_curves.png",
+                )
 
-        # Periodic eval plots
-        if (epoch + 1) % eval_every == 0 or epoch == 0:
-            _eval_diffusion(
-                diff_model, drn, vae, ema, schedule, pos_emb,
-                eval_era5, eval_conus, plot_dir, epoch + 1,
-                latent_ch=latent_ch, device=device,
-            )
-            plot_loss_curves(
-                {"Diff Train Loss (per step)": all_train_losses,
-                 "Diff Val Loss (per epoch)": all_val_losses},
-                f"{plot_dir}/diff_loss_curves.png",
-            )
-
-    return diff_model, ema
+    return raw_model, ema
 
 
 def _eval_diffusion(diff_model, drn, vae, ema, schedule, pos_emb,
