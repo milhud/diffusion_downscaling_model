@@ -52,7 +52,9 @@ def train_drn(
     else:
         criterion = nn.MSELoss()
         opt_params = model.parameters()
-    optimizer = torch.optim.AdamW(opt_params, lr=lr * world_size, weight_decay=weight_decay)
+    # Do NOT scale LR by world_size — Adam normalizes by gradient variance,
+    # so linear LR scaling (the SGD rule) overshoots and hurts convergence.
+    optimizer = torch.optim.AdamW(opt_params, lr=lr, weight_decay=weight_decay)
     warmup_sched = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=1e-3, total_iters=warmup_epochs)
     cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -100,8 +102,6 @@ def train_drn(
         # Sync DistributedSampler shuffling seed and criterion weights
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
-        if world_size > 1 and hasattr(criterion, "log_var"):
-            dist.broadcast(criterion.log_var.data, src=0)
 
         model.train()
         epoch_loss = 0.0
@@ -117,6 +117,10 @@ def train_drn(
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
+
+            # Keep log_var in sync across GPUs (cheap: only 6 floats)
+            if world_size > 1 and hasattr(criterion, "log_var"):
+                dist.broadcast(criterion.log_var.data, src=0)
 
             epoch_loss += loss.item()
             all_train_losses.append(loss.item())

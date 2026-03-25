@@ -114,7 +114,7 @@ def train_diffusion(
 
     schedule = EDMSchedule(p_mean=p_mean, p_std=p_std)
     ema = EMA(raw_model, decay=ema_decay)
-    optimizer = torch.optim.AdamW(diff_model.parameters(), lr=lr * world_size, weight_decay=1e-5)
+    optimizer = torch.optim.AdamW(diff_model.parameters(), lr=lr, weight_decay=1e-5)
     warmup_sched = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=1e-3, total_iters=warmup_epochs)
     if cosine_restart_period > 0:

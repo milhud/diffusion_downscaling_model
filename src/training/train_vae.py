@@ -49,7 +49,7 @@ def train_vae(
     raw_vae = vae.module if world_size > 1 else vae
 
     criterion = VAELoss()
-    optimizer = torch.optim.AdamW(vae.parameters(), lr=lr * world_size, weight_decay=1e-5)
+    optimizer = torch.optim.AdamW(vae.parameters(), lr=lr, weight_decay=1e-5)
     warmup_sched = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=1e-3, total_iters=warmup_epochs)
     cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
