@@ -1,16 +1,15 @@
 #!/usr/bin/bash
 #SBATCH -J build_cache
-#SBATCH --partition=gpu_a100
+#SBATCH --partition=columbia
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:0
-#SBATCH --constraint=rome
 #SBATCH --time=12:00:00
-#SBATCH --qos=alla100
+#SBATCH --qos=columbia
 #SBATCH -o cache_output.%j
 #SBATCH -e cache_error.%j
-#SBATCH --account=s1001
+#SBATCH --account=columbia
 
 # ──────────────────────────────────────────────────────────────────────
 # Build regridded cache for all variables.
@@ -23,10 +22,11 @@
 # Size estimate: ~5 GB/year for 6+6 variables = ~200 GB total.
 # ──────────────────────────────────────────────────────────────────────
 
-cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
+cd /mnt/home/hmiller/diffusion_downscaling_model
 
 module purge
-module load python/GEOSpyD/24.3.0-0/3.12
+module load Python/3.10.15
+source ~/venv/bin/activate
 
 OUTPUT_DIR="${1:?Usage: sbatch run_build_cache.sh /path/to/output/cache}"
 shift

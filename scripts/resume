@@ -11,7 +11,7 @@
 # Logs go to train_loop.log. Stop with: kill $(cat .train_daemon.pid)
 # ============================================================================
 
-cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
+cd /mnt/home/hmiller/diffusion_downscaling_model
 
 STAGE="${1:-}"
 if [[ -z "$STAGE" ]]; then
@@ -34,7 +34,7 @@ if [[ -f .train_daemon.pid ]]; then
     rm -f .train_daemon.pid
 fi
 
-CACHE_DIR="/discover/nobackup/sduan/.data"
+CACHE_DIR="/mnt/home/hmiller/cached_data"
 
 echo "Resuming $STAGE training..."
 nohup bash scripts/train_until_done.sh \

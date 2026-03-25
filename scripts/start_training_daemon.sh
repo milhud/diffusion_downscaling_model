@@ -13,7 +13,7 @@
 # ============================================================================
 
 set -euo pipefail
-cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
+cd /mnt/home/hmiller/diffusion_downscaling_model
 
 # Check if daemon is already running
 if [[ -f .train_daemon.pid ]]; then

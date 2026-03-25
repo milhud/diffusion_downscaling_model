@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=analysis
-#SBATCH --partition=gpu_a100
-#SBATCH --qos=alla100
+#SBATCH --partition=columbia
+#SBATCH --qos=columbia
+#SBATCH --account=columbia
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
-#SBATCH --constraint=rome
+#SBATCH --gres=gpu:nvidia_h100_80gb_hbm3:1
 #SBATCH --time=12:00:00
 #SBATCH --output=analysis_output.%j
 #SBATCH --error=analysis_error.%j
@@ -26,7 +26,7 @@
 # ============================================================================
 
 set -euo pipefail
-cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
+cd /mnt/home/hmiller/diffusion_downscaling_model
 
 # Parse arguments (passed after sbatch via -- or as SLURM comment)
 ANALYSIS="${1:---analysis}"

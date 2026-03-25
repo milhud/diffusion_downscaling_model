@@ -1,17 +1,17 @@
 #!/usr/bin/bash
 #SBATCH -J sanity_check
-#SBATCH --partition=gpu_a100
+#SBATCH --partition=columbia
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1
-#SBATCH --constraint=rome
+#SBATCH --gres=gpu:nvidia_h100_80gb_hbm3:1
 #SBATCH --time=6:00:00
+#SBATCH --qos=columbia
 #SBATCH -o sanity_check_output.%j
 #SBATCH -e sanity_check_error.%j
-#SBATCH --account=s1001
+#SBATCH --account=columbia
 
-cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
+cd /mnt/home/hmiller/diffusion_downscaling_model
 
 # Archive old log files (exclude current job's files)
 mkdir -p sbatch_logs
@@ -24,7 +24,8 @@ for f in sanity_check_output.* sanity_check_error.*; do
 done
 
 module purge
-module load python/GEOSpyD/24.3.0-0/3.12
+module load Python/3.10.15
+source ~/venv/bin/activate
 
 # Pass through any extra args, e.g.: sbatch run_sanity_check.sh --extensive
 python sanity_check.py --device cuda --plot_dir sanity_plots "$@"

@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=sanity_check
-#SBATCH --partition=gpu_a100
-#SBATCH --qos=alla100
+#SBATCH --partition=columbia
+#SBATCH --qos=columbia
+#SBATCH --account=columbia
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
-#SBATCH --constraint=rome
+#SBATCH --gres=gpu:nvidia_h100_80gb_hbm3:1
 #SBATCH --time=03:00:00
 #SBATCH --output=sanity_check_output.%j
 #SBATCH --error=sanity_check_error.%j
@@ -17,12 +17,12 @@
 # Usage:
 #   sbatch scripts/run_sanity_check.sh
 #
-# Expected runtime: ~30-60 minutes on A100
+# Expected runtime: ~30-60 minutes on H100
 # Output: sanity_plots/ directory with 16 diagnostic PNG files
 # ============================================================================
 
 set -euo pipefail
-cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
+cd /mnt/home/hmiller/diffusion_downscaling_model
 
 echo "============================================"
 echo "Comprehensive Sanity Check"

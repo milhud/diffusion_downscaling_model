@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=pipeline_test
-#SBATCH --partition=gpu_a100
-#SBATCH --qos=alla100
+#SBATCH --partition=columbia
+#SBATCH --qos=columbia
+#SBATCH --account=columbia
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
-#SBATCH --constraint=rome
+#SBATCH --gres=gpu:nvidia_h100_80gb_hbm3:1
 #SBATCH --time=03:00:00
 #SBATCH --output=pipeline_test_output.%j
 #SBATCH --error=pipeline_test_error.%j
@@ -14,7 +14,7 @@
 # Uses separate checkpoint/plot dirs to avoid overwriting real training
 
 set -euo pipefail
-cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
+cd /mnt/home/hmiller/diffusion_downscaling_model
 
 echo "============================================"
 echo "Pipeline Test (2 epochs per stage)"

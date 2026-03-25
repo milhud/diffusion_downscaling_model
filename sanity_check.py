@@ -51,7 +51,7 @@ from src.training.losses import PerVariableMSE, VAELoss
 from src.training.ema import EMA
 
 # ─── Config ──────────────────────────────────────────────────────────────────
-DATA_DIR = Path("/gpfsm/dnb33/hpmille1/diffusion_downscaling_model/data")
+DATA_DIR = Path("/mnt/home/hmiller/diffusion_downscaling_model/data")
 PATCH_SIZE = 256
 LATENT_H = LATENT_W = 64
 IN_CH = 7   # 1 ERA5 var + 6 static

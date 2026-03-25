@@ -74,11 +74,11 @@ LATENT_CH = 8                # VAE latent channels (when OUT_CH > 1)
 ## Data Sources
 
 - **ERA5:** ECMWF Reanalysis v5
-  - Location: `/discover/nobackup/sduan/pipeline/data/processed/era5_{YYYY}.nc`
+  - Location: `/mnt/home/hmiller/era5_data/era5_{YYYY}.nc`
   - Symlinked from: `data/era5_{YYYY}.nc`
 
 - **CONUS404:** WRF dynamical downscaling of ERA5 by NCAR
-  - Location: `/discover/nobackup/hpmille1/final_data/conus404_yearly_{YYYY}.nc`
+  - Location: `/mnt/home/hmiller/conus404_data/conus404_yearly_{YYYY}.nc`
   - Symlinked from: `data/conus404_yearly_{YYYY}.nc`
 
 ## Available Variables in Source Files
