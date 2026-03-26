@@ -176,10 +176,38 @@ def main():
 
     t0 = time.time()
     stats = compute_norm_stats(args.data_dir, train_years)
-    regridder, conus_lat, conus_lon, land_mask, valid_origins = \
-        setup_regridder_and_mask(args.data_dir)
 
     cache_dir = None if args.no_cache else args.cache_dir
+
+    # Build land mask and valid patch origins.
+    # When the numpy cache is available, derive directly from static_fields.npy
+    # (channel 5 = LSM) to avoid opening the .nc files which may not be
+    # accessible on all compute nodes.
+    min_land_frac = TRAIN.get("min_land_frac", 0.5)
+    cache_static = (Path(cache_dir) / "static_fields.npy") if cache_dir else None
+    if cache_static and cache_static.exists():
+        if rank == 0:
+            static = np.load(cache_static)
+            land_mask = static[5] > 0.5  # LSM channel
+            valid_origins = get_valid_patch_origins(land_mask, PATCH_SIZE, min_land_frac)
+            print(f"[LandMask] {len(valid_origins)} valid patch origins "
+                  f"(min_land_frac={min_land_frac})")
+            _setup = [(None, None, None, land_mask, valid_origins)]
+        else:
+            _setup = [None]
+        if world_size > 1:
+            dist.broadcast_object_list(_setup, src=0)
+        _, _, _, land_mask, valid_origins = _setup[0]
+        regridder = conus_lat = conus_lon = None
+    else:
+        # Fallback: read from .nc files (slow path / no cache)
+        if rank == 0:
+            _setup = [setup_regridder_and_mask(args.data_dir)]
+        else:
+            _setup = [None]
+        if world_size > 1:
+            dist.broadcast_object_list(_setup, src=0)
+        regridder, conus_lat, conus_lon, land_mask, valid_origins = _setup[0]
     num_workers = 4 if args.no_cache else 2
 
     train_dl, val_dl, train_sampler = build_dataloaders(
