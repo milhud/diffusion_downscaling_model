@@ -94,10 +94,10 @@ TRAIN = dict(
     diff_lr=2e-4,
     diff_warmup_epochs=5,
     diff_grad_accum=4,        # accumulate 4 mini-batches → effective batch 32
-    diff_cosine_restart_period=10,  # restart LR every N epochs after warmup
+    diff_cosine_restart_period=200, # effectively disabled — plain cosine decay
     diff_p_mean=-0.8,         # EDM noise schedule: shifted toward lower noise
     diff_p_std=1.0,           # EDM noise schedule: tighter distribution
-    ema_decay=0.9999,
+    ema_decay=0.999,          # was 0.9999 — half-life ~700 steps, tracks model faster
     p_uncond=0.1,
     min_land_frac=0.8,  # patches must be >= 80% land
 )
