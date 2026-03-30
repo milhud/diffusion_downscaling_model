@@ -135,7 +135,7 @@ def evaluate_drn(drn, era5_batch, conus_batch, plot_dir, epoch, device="cuda"):
 
 def evaluate_full_pipeline(drn, vae, diff_model, ema, schedule, era5_batch,
                            conus_batch, plot_dir, epoch, latent_ch=4,
-                           num_sampling_steps=16, num_ensemble=4,
+                           num_sampling_steps=32, num_ensemble=16,
                            guidance_scale=0.2, device="cuda"):
     """Generate full pipeline evaluation plots (DRN + Diffusion)."""
     from ..models.edm import heun_sampler
@@ -226,4 +226,12 @@ def evaluate_full_pipeline(drn, vae, diff_model, ema, schedule, era5_batch,
 
     drn_rmse = np.sqrt((drn_err ** 2).mean())
     final_rmse = np.sqrt((final_err ** 2).mean())
-    return drn_rmse, final_rmse
+
+    # CRPS (energy score form): E|x - y| - 0.5 * E|x - x'|
+    # ens_stack: (N, C, H, W), conus: (1, C, H, W)
+    n = ens_stack.shape[0]
+    mae_term = (ens_stack - conus).abs().mean(dim=0)           # (C, H, W)
+    spread_term = (ens_stack.unsqueeze(0) - ens_stack.unsqueeze(1)).abs().mean(dim=(0, 1))
+    crps = (mae_term - 0.5 * spread_term).mean().item()
+
+    return drn_rmse, final_rmse, crps

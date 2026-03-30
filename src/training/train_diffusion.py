@@ -290,7 +290,7 @@ def train_diffusion(
 
 def _eval_diffusion(diff_model, drn, vae, ema, schedule, pos_emb,
                     era5_batch, conus_batch, plot_dir, epoch,
-                    latent_ch=4, num_steps=16, device="cuda"):
+                    latent_ch=4, num_steps=32, num_ensemble=16, device="cuda"):
     """Generate diffusion evaluation plots: target / DRN / DRN+Diff / error + spectra."""
     diff_model.eval()
     era5 = era5_batch[:1].to(device)
@@ -300,39 +300,48 @@ def _eval_diffusion(diff_model, drn, vae, ema, schedule, pos_emb,
         drn_pred = drn(era5)
         cond = _build_diffusion_cond(era5, drn_pred, vae, pos_emb, p_uncond=0)
 
-    # Sample with EMA weights
+    # Ensemble sampling with EMA weights
+    ensemble = []
     with ema.apply():
-        z = heun_sampler(diff_model, schedule, cond,
-                         shape=(1, latent_ch, 64, 64),
-                         num_steps=num_steps, guidance_scale=0.2)
-    with torch.no_grad():
-        resid_recon = vae.decode(z)
-        full_recon = drn_pred + resid_recon
+        for _ in range(num_ensemble):
+            z = heun_sampler(diff_model, schedule, cond,
+                             shape=(1, latent_ch, 64, 64),
+                             num_steps=num_steps, guidance_scale=0.2)
+            with torch.no_grad():
+                resid_recon = vae.decode(z)
+                ensemble.append(drn_pred + resid_recon)
 
-    # Plot comparison (normalized space)
+    ens_stack = torch.cat(ensemble, dim=0)   # (N, C, H, W)
+    ens_mean = ens_stack.mean(dim=0, keepdim=True)
+    full_recon = ensemble[-1]
+
+    # Plot comparison using ensemble mean (normalized space)
     target_np = conus[0, 0].cpu().numpy()
     drn_np = drn_pred[0, 0].cpu().numpy()
-    full_np = full_recon[0, 0].cpu().numpy()
+    full_np = ens_mean[0, 0].cpu().numpy()
     err_np = full_np - target_np
 
     plot_stage_comparison(
         [target_np, drn_np, full_np, err_np],
-        ["Target", "DRN", "DRN+Diff", "Error"],
+        ["Target", "DRN", "DRN+Diff (ens mean)", "Error"],
         f"{plot_dir}/diff_epoch{epoch:03d}.png",
-        suptitle=f"Diffusion — Epoch {epoch}",
+        suptitle=f"Diffusion — Epoch {epoch} (N={num_ensemble})",
         share_groups=[0, 0, 0, 1],
     )
 
     # Power spectra
+    single_np = full_recon[0, 0].cpu().numpy()
     target_spec = radial_power_spectrum(target_np)
     drn_spec = radial_power_spectrum(drn_np)
-    full_spec = radial_power_spectrum(full_np)
+    full_spec = radial_power_spectrum(single_np)
+    ens_spec = radial_power_spectrum(full_np)
 
     fig, ax = plt.subplots(figsize=(8, 5))
     k = np.arange(1, len(target_spec))
     ax.loglog(k, target_spec[1:], 'k-', linewidth=2, label='Target')
     ax.loglog(k, drn_spec[1:], 'g-', linewidth=1.5, label='DRN')
-    ax.loglog(k, full_spec[1:], 'r-', linewidth=1.5, label='DRN+Diff')
+    ax.loglog(k, full_spec[1:], 'r-', linewidth=1.5, label='DRN+Diff (single)')
+    ax.loglog(k, ens_spec[1:], 'm--', linewidth=1.5, label='DRN+Diff (ens mean)')
     ax.set_xlabel("Wavenumber k"); ax.set_ylabel("Power")
     ax.set_title(f"Power Spectrum — Epoch {epoch}")
     ax.legend(fontsize=9); ax.grid(True, alpha=0.3, which='both')
@@ -340,6 +349,14 @@ def _eval_diffusion(diff_model, drn, vae, ema, schedule, pos_emb,
     fig.savefig(f"{plot_dir}/diff_spectra_epoch{epoch:03d}.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
 
+    # Metrics: RMSE and CRPS
     drn_rmse = np.sqrt(((drn_np - target_np) ** 2).mean())
     full_rmse = np.sqrt(((full_np - target_np) ** 2).mean())
-    print(f"  [Diff] Epoch {epoch} eval — DRN RMSE: {drn_rmse:.4f}, DRN+Diff RMSE: {full_rmse:.4f}")
+
+    # CRPS (energy score): E|x-y| - 0.5*E|x-x'|
+    mae_term = (ens_stack - conus).abs().mean(dim=0)
+    spread_term = (ens_stack.unsqueeze(0) - ens_stack.unsqueeze(1)).abs().mean(dim=(0, 1))
+    crps = (mae_term - 0.5 * spread_term).mean().item()
+
+    print(f"  [Diff] Epoch {epoch} eval — DRN RMSE: {drn_rmse:.4f}, "
+          f"DRN+Diff RMSE: {full_rmse:.4f}, CRPS: {crps:.4f}")
