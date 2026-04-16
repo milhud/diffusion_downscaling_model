@@ -1,0 +1,3 @@
+sbatch scripts/run_build_cache.sh /path/to/cache
+
+sbatch scripts/run_training.sh --cache_dir /discover/nobackup/sduan/.data

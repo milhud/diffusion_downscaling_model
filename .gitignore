@@ -2,3 +2,28 @@
 CLAUDE.md
 sbatch_logs/
 
+# Python build artifacts
+__pycache__/
+*.pyc
+
+# Large generated artifacts
+cached_data/
+checkpoints/
+checkpoints_test/
+train_plots_test/
+
+# Runtime / daemon state
+.train_daemon.pid
+train_loop.log
+
+# SLURM stdout/stderr dumps
+cache_error.*
+cache_output.*
+cache_p1_error.*
+cache_p1_output.*
+cache_p2_error.*
+cache_p2_output.*
+train_error.*
+train_output.*
+pipeline_test_error.*
+pipeline_test_output.*

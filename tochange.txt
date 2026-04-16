@@ -1,59 +1,111 @@
 THINGS TO CHANGE ON A NEW MACHINE
 ==================================
 
-1. HARDCODED WORKING DIRECTORY
-   - scripts/run_training.sh line: cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
-     → Change to the new absolute path of the repo
-   - scripts/train_until_done.sh line: cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
-     → Same
+1. HARDCODED REPO PATH (cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model)
+   Every SLURM script hard-codes the old absolute repo path. Replace it with the
+   new repo's absolute path in all of the following:
 
-2. CACHE DIRECTORY (pre-computed .npy files)
-   - scripts/run_training.sh: --cache_dir /discover/nobackup/sduan/.data
-     → Change to wherever the numpy cache lives on the new machine
-   - If no cache exists, run preprocess_cache.py first to build it
-   - Cache contents needed: era5_YYYY.npy, conus_YYYY.npy, static_fields.npy, nan_days.json
+     scripts/run_training.sh               line 26
+     scripts/train_until_done.sh           line 28
+     scripts/start_training_daemon.sh      line 16
+     scripts/resume                        line 14
+     scripts/run_preprocess.sh             line 23
+     scripts/run_build_cache.sh            line 26
+     scripts/run_build_cache_part1.sh      line 15
+     scripts/run_build_cache_part2.sh      line 15
+     scripts/run_pipeline_test.sh          line 17
+     scripts/run_sanity_check.sh           line 25
+     scripts/run_analysis.sh               line 29
+     scripts/run_evaluation.sh             line 16
+
+   Also in the (older, root-level) duplicates still on disk:
+     run_training.sh, run_preprocess.sh, run_sanity_check.sh
+
+   And one hardcoded python path:
+     sanity_check.py                       line 54  (DATA_DIR = Path("..."))
+
+2. CACHE DIRECTORY (pre-computed .npy files: /discover/nobackup/sduan/.data)
+   Replace with the new machine's cache location in:
+
+     scripts/run_training.sh               line 51  (--cache_dir ...)
+     scripts/run_build_cache_part1.sh      line 19  (--output_dir ...)
+     scripts/run_build_cache_part2.sh      line 19  (--output_dir ...)
+     scripts/resume                        line 37  (CACHE_DIR=...)
+
+   If no cache exists on the new machine, build it with:
+     sbatch scripts/run_build_cache_part1.sh   # years 1980-2000
+     sbatch scripts/run_build_cache_part2.sh   # years 2001-2020
+   (or the single-job version: sbatch scripts/run_build_cache.sh)
+
+   Cache contents required by training:
+     era5_YYYY.npy, conus_YYYY.npy, static_fields.npy, nan_days.json
+
+   Note: the legacy per-year preprocessor `preprocess_cache.py` (invoked by
+   scripts/run_preprocess.sh) still works, but the current pipeline uses
+   scripts/build_cache.py via the two *_part{1,2}.sh SLURM jobs above.
 
 3. DATA SYMLINKS (data/ directory)
-   - All files in data/ are symlinks pointing to:
+   Files in data/ are symlinks to:
        /discover/nobackup/sduan/pipeline/data/processed/era5_YYYY.nc
-       /discover/nobackup/sduan/pipeline/data/processed/conus404_yearly_YYYY.nc
-   - These .nc files are ONLY needed if running without the cache (slow path)
-   - With the cache, these symlinks are not accessed during training
-   - To recreate symlinks: ln -s /new/path/era5_YYYY.nc data/era5_YYYY.nc
+       /discover/nobackup/hpmille1/final_data/conus404_yearly_YYYY.nc
+   Only needed when training/preprocessing without the .npy cache (slow path).
+   With the cache present, these are not opened during training.
+   To recreate: ln -s /new/path/era5_YYYY.nc        data/era5_YYYY.nc
+                ln -s /new/path/conus404_yearly_YYYY.nc data/conus404_yearly_YYYY.nc
 
-4. SLURM / JOB SCHEDULER
-   - scripts/run_training.sh SBATCH headers assume the Discover/NCCS cluster:
-       --partition=gpu_a100
-       --qos=alla100
-       --account=s1001
+   IMPORTANT: per project policy, data/ files must be treated as read-only.
+   Do not rewrite .nc files in place; all normalization/pretransform lives in
+   src/preprocessing/ and happens in memory. On a fresh machine run:
+       chmod -R 444 data/
+   once symlinks are created.
+
+4. SLURM HEADERS (cluster-specific — present in EVERY script under scripts/)
+   Discover/NCCS values in use:
+       --partition=gpu_a100       (compute nodes: --partition=compute)
        --constraint=rome
-   - Replace with your cluster's GPU partition, QOS, and account
-   - If not using SLURM, run directly:
+       --qos=alla100              (compute: --qos=alls1001)
+       --account=s1001
+   Replace all four with your cluster's equivalents in every script in scripts/
+   (run_training.sh, run_build_cache*.sh, run_preprocess.sh, run_pipeline_test.sh,
+    run_sanity_check.sh, run_analysis.sh, run_evaluation.sh).
+
+   Non-SLURM direct launch:
        torchrun --nproc_per_node=4 train.py --stage drn --data_dir data \
          --checkpoint_dir checkpoints --plot_dir train_plots \
          --cache_dir /path/to/cache
 
-5. PYTHON ENVIRONMENT
-   - scripts/run_training.sh: module load python/GEOSpyD/24.3.0-0/3.12
-     → Replace with your environment activation (conda activate X, source venv/bin/activate, etc.)
-   - Required packages: torch, torchvision, xarray, numpy, scipy, matplotlib,
-                        netCDF4, huggingface_hub, xesmf (for regridding)
+5. PYTHON ENVIRONMENT (module load python/GEOSpyD/24.3.0-0/3.12)
+   Every script runs this module-load line. Replace with your env activation
+   (conda activate X / source venv/bin/activate / module load ...) in all of:
 
-6. CHECKPOINTS (to resume from HuggingFace)
-   - Stored at: mudhil/diffusion-downscaling-model under checkpoints_final/
-   - Download:
-       from huggingface_hub import hf_hub_download
-       hf_hub_download('mudhil/diffusion-downscaling-model',
-                       'checkpoints_final/drn_best.pt', local_dir='checkpoints/')
-     Or use huggingface-cli:
-       huggingface-cli download mudhil/diffusion-downscaling-model \
-         --include "checkpoints_final/*" --local-dir checkpoints/
+     scripts/run_training.sh, scripts/run_preprocess.sh,
+     scripts/run_build_cache.sh, scripts/run_build_cache_part1.sh,
+     scripts/run_build_cache_part2.sh, scripts/run_sanity_check.sh,
+     scripts/run_analysis.sh, scripts/run_evaluation.sh
+     (root-level run_training.sh / run_preprocess.sh / run_sanity_check.sh too)
 
-7. NORM STATS
-   - norm_stats.npz is generated automatically from the data on first run
-   - If cache exists on new machine, copy norm_stats.npz from the old machine
-     to avoid recomputing it
+   Required packages:
+     torch, torchvision, xarray, numpy, scipy, matplotlib,
+     netCDF4, huggingface_hub, xesmf (for regridding)
 
-8. NOBACKUP PATH IN train.py
-   - No hardcoded nobackup paths in train.py itself — all paths come from CLI args
-   - Only the SBATCH script has the hardcoded --cache_dir (see item 2 above)
+6. CHECKPOINTS (resume from HuggingFace)
+   Stored at: mudhil/diffusion-downscaling-model under checkpoints_final/
+   Download:
+     from huggingface_hub import hf_hub_download
+     hf_hub_download('mudhil/diffusion-downscaling-model',
+                     'checkpoints_final/drn_best.pt', local_dir='checkpoints/')
+   or:
+     huggingface-cli download mudhil/diffusion-downscaling-model \
+       --include "checkpoints_final/*" --local-dir checkpoints/
+
+7. NORM STATS (norm_stats.npz)
+   Auto-generated from the training data on first run. Copy norm_stats.npz
+   from the old machine if you want to avoid the recompute.
+
+8. TRAINING DAEMON PID FILE (.train_daemon.pid)
+   Created by scripts/start_training_daemon.sh. Delete any leftover
+   .train_daemon.pid on the new machine before starting the daemon again.
+
+9. NO HARDCODED PATHS IN train.py OR config.py
+   All data/cache paths come from CLI args; only the SBATCH scripts hold
+   absolute paths. config.py is machine-independent.
