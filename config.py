@@ -95,8 +95,11 @@ TRAIN = dict(
     diff_warmup_epochs=5,
     diff_grad_accum=4,        # accumulate 4 mini-batches → effective batch 32
     diff_cosine_restart_period=200, # effectively disabled — plain cosine decay
-    diff_p_mean=-0.8,         # EDM noise schedule: shifted toward lower noise
+    diff_p_mean=-1.2,         # EDM noise schedule: biased toward fine-detail regime (σ≈0.30)
     diff_p_std=1.0,           # EDM noise schedule: tighter distribution
+    drn_spectral_weight=0.1,  # wavenumber-weighted FFT power penalty
+    drn_gradient_weight=0.1,  # Sobel edge preservation penalty
+    vae_spectral_weight=0.05, # spectral reconstruction penalty for residual decoder
     ema_decay=0.999,          # was 0.9999 — half-life ~700 steps, tracks model faster
     p_uncond=0.1,
     min_land_frac=0.8,  # patches must be >= 80% land

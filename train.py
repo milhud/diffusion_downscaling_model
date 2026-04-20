@@ -253,6 +253,8 @@ def main():
                         eval_every=3,
                         num_output_vars=OUT_CH,
                         precip_channel=-1,
+                        spectral_weight=TRAIN.get("drn_spectral_weight", 0.0),
+                        gradient_weight=TRAIN.get("drn_gradient_weight", 0.0),
                         resume=args.resume,
                         rank=rank, local_rank=local_rank, world_size=world_size,
                         train_sampler=train_sampler)
@@ -280,6 +282,7 @@ def main():
                         lr=TRAIN["vae_lr"],
                         beta_max=TRAIN["vae_beta_max"],
                         beta_anneal_frac=TRAIN["vae_beta_anneal_frac"],
+                        spectral_weight=TRAIN.get("vae_spectral_weight", 0.0),
                         warmup_epochs=TRAIN["vae_warmup_epochs"],
                         device=device,
                         checkpoint_dir=args.checkpoint_dir,

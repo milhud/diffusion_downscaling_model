@@ -27,6 +27,8 @@ def train_drn(
     eval_every: int = 3,
     num_output_vars: int = 1,
     precip_channel: int = -1,
+    spectral_weight: float = 0.0,
+    gradient_weight: float = 0.0,
     resume: bool = False,
     rank: int = 0,
     local_rank: int = 0,
@@ -46,7 +48,12 @@ def train_drn(
     raw_model = model.module if world_size > 1 else model
 
     if num_output_vars > 1:
-        criterion = PerVariableMSE(num_vars=num_output_vars, precip_channel=precip_channel).to(device)
+        criterion = PerVariableMSE(
+            num_vars=num_output_vars,
+            precip_channel=precip_channel,
+            spectral_weight=spectral_weight,
+            gradient_weight=gradient_weight,
+        ).to(device)
         # Scale LR linearly with world_size (linear scaling rule)
         opt_params = list(model.parameters()) + list(criterion.parameters())
     else:

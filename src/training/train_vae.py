@@ -20,6 +20,7 @@ def train_vae(
     lr: float = 1e-4,
     beta_max: float = 1e-3,
     beta_anneal_frac: float = 0.3,
+    spectral_weight: float = 0.0,
     warmup_epochs: int = 3,
     device: str = "cuda",
     checkpoint_dir: str = "checkpoints",
@@ -48,7 +49,7 @@ def train_vae(
         vae = DDP(vae, device_ids=[local_rank], output_device=local_rank)
     raw_vae = vae.module if world_size > 1 else vae
 
-    criterion = VAELoss()
+    criterion = VAELoss(spectral_weight=spectral_weight).to(device)
     optimizer = torch.optim.AdamW(vae.parameters(), lr=lr, weight_decay=1e-5)
     warmup_sched = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=1e-3, total_iters=warmup_epochs)
