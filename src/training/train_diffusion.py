@@ -154,8 +154,12 @@ def train_diffusion(
                 ema.load_state_dict(ckpt["ema_state_dict"])
             start_epoch = ckpt["epoch"] + 1
             best_val_loss = ckpt.get("best_val_loss", ckpt.get("val_loss", float("inf")))
-            if "scheduler_state_dict" in ckpt:
-                scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+            # Do NOT restore scheduler state — old checkpoint carries a stale
+            # T_max from when diff_epochs was lower. Fast-forward the fresh
+            # scheduler (built with the current total_epochs) to the resume
+            # epoch so LR lands at the correct point on the new cosine.
+            for _ in range(start_epoch):
+                scheduler.step()
             if "train_losses" in ckpt:
                 all_train_losses = ckpt["train_losses"]
             if "val_losses" in ckpt:
