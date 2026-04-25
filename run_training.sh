@@ -42,6 +42,6 @@ module load python/GEOSpyD/24.3.0-0/3.12
 # Default: train all stages end-to-end.
 # Override: sbatch run_training.sh --stage drn
 python -u train.py --stage all --data_dir data --checkpoint_dir checkpoints \
-    --plot_dir train_plots --device cuda "$@"
+    --plot_dir train_plots "$@"
 
 exit 0
