@@ -57,6 +57,7 @@ class CachedDownscalingDataset(Dataset):
         valid_origins: Optional[List[Tuple[int, int]]] = None,
         era5_vars: Optional[list] = None,
         conus_vars: Optional[list] = None,
+        hflip_p: float = 0.0,
     ):
         self.cache_dir = Path(cache_dir)
         self.norm_stats = norm_stats
@@ -65,6 +66,15 @@ class CachedDownscalingDataset(Dataset):
         self.valid_origins = valid_origins
         self.era5_vars = era5_vars or DEFAULT_ERA5_VARS
         self.conus_vars = conus_vars or DEFAULT_CONUS404_VARS
+        self.hflip_p = hflip_p
+        # Pre-resolve sign-flip indices for u-wind channels under x-flip.
+        # ERA5 channel layout = era5_vars + 6 static fields.
+        self._era5_uflip = [
+            i for i, v in enumerate(self.era5_vars) if v.lower() == "u10"
+        ]
+        self._conus_uflip = [
+            i for i, v in enumerate(self.conus_vars) if v.upper() == "U10"
+        ]
 
         # Load static fields
         self.static = np.load(self.cache_dir / "static_fields.npy")  # (6, H, W)
@@ -149,6 +159,17 @@ class CachedDownscalingDataset(Dataset):
         era5_patch = torch.cat([era5_vars_patch, era5_patch[n_era5:]], dim=0)
 
         conus_patch = self.norm_stats.normalize_conus(conus_patch.unsqueeze(0)).squeeze(0)
+
+        # Random horizontal flip (train-time only). Mirrors all spatial fields
+        # and negates u-wind channels; lat/lon static channels become
+        # left-right mirrored — model learns to use them as positional cues.
+        if self.hflip_p > 0 and torch.rand(1).item() < self.hflip_p:
+            era5_patch = torch.flip(era5_patch, dims=[-1])
+            conus_patch = torch.flip(conus_patch, dims=[-1])
+            for i in self._era5_uflip:
+                era5_patch[i] = -era5_patch[i]
+            for i in self._conus_uflip:
+                conus_patch[i] = -conus_patch[i]
 
         return era5_patch, conus_patch
 
@@ -381,7 +402,7 @@ def build_dataloaders(
             conus_vars=conus_vars,
         )
         train_ds = DatasetClass(years=train_years, patches_per_day=patches_per_day,
-                                **common_kwargs)
+                                hflip_p=0.5, **common_kwargs)
         val_ds = DatasetClass(years=val_years, patches_per_day=1, **common_kwargs)
     else:
         if rank == 0:

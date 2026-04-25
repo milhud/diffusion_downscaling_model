@@ -189,8 +189,8 @@ def train_diffusion(
             with torch.no_grad():
                 drn_pred = drn(era5)
                 residual = conus - drn_pred
-                mu, logvar = vae.encode(residual)
-                z_clean = vae.reparameterize(mu, logvar)
+                mu, _ = vae.encode(residual)
+                z_clean = mu
 
             # Build conditioning
             cond = _build_diffusion_cond(era5, drn_pred, vae, pos_emb, p_uncond=p_uncond)
@@ -223,18 +223,19 @@ def train_diffusion(
         scheduler.step()
         avg_train = epoch_loss / max(len(train_loader), 1)
 
-        # Validation — aggregate across all ranks
+        # Validation — aggregate across all ranks (use EMA weights for the
+        # measurement that actually matches inference)
         diff_model.eval()
         val_loss = torch.tensor(0.0, device=device)
         val_count = torch.tensor(0, device=device)
-        with torch.no_grad():
+        with torch.no_grad(), ema.apply():
             for era5, conus in val_loader:
                 era5 = era5.to(device)
                 conus = conus.to(device)
                 drn_pred = drn(era5)
                 residual = conus - drn_pred
-                mu, logvar = vae.encode(residual)
-                z_clean = vae.reparameterize(mu, logvar)
+                mu, _ = vae.encode(residual)
+                z_clean = mu
                 cond = _build_diffusion_cond(era5, drn_pred, vae, pos_emb, p_uncond=0)
                 loss = edm_training_loss(diff_model, schedule, z_clean, cond)
                 val_loss += loss
