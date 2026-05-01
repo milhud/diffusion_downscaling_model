@@ -3,8 +3,9 @@
 #SBATCH --partition=gpu_a100
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=32
+#SBATCH --gres=gpu:4
+#SBATCH --mem=400G
 #SBATCH --constraint=rome
 #SBATCH --time=12:00:00
 #SBATCH --qos=alla100
@@ -41,7 +42,9 @@ module load python/GEOSpyD/24.3.0-0/3.12
 
 # Default: train all stages end-to-end.
 # Override: sbatch run_training.sh --stage drn
-python -u train.py --stage all --data_dir data --checkpoint_dir checkpoints \
+torchrun --standalone --nproc_per_node=4 train.py \
+    --stage all --data_dir data --checkpoint_dir checkpoints \
+    --cache_dir /discover/nobackup/sduan/.data \
     --plot_dir train_plots "$@"
 
 exit 0
