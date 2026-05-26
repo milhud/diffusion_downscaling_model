@@ -87,7 +87,7 @@ def evaluate_ensemble(
                     ens_v = ensemble[:, vi, :, :]               # (M, H, W)
 
                     # CRPS
-                    c = crps_ensemble(tgt_v.flatten(), ens_v.reshape(num_members, -1).T)
+                    c = crps_ensemble(tgt_v.flatten(), ens_v.reshape(num_members, -1))
                     all_crps[vname].append(c)
 
                     # RMSE and MAE of ensemble mean
@@ -102,8 +102,8 @@ def evaluate_ensemble(
                     # Rank histogram (subsample spatially for efficiency)
                     step = max(1, tgt_v.shape[0] // 32)
                     sub_tgt = tgt_v[::step, ::step].flatten()
-                    sub_ens = ens_v[:, ::step, ::step].reshape(num_members, -1).T
-                    rh = rank_histogram(sub_ens.T, sub_tgt, num_bins=num_members + 1)
+                    sub_ens = ens_v[:, ::step, ::step].reshape(num_members, -1)
+                    rh = rank_histogram(sub_ens, sub_tgt, num_bins=num_members + 1)
                     all_rank_counts[vname] += rh
 
                     # Q-Q quantiles
