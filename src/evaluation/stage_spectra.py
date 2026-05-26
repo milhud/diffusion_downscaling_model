@@ -127,11 +127,15 @@ def compute_stage_spectra(
     linewidths = {"ERA5 Interp": 1, "DRN": 1.5, "DRN+VAE": 1.5,
                   "DRN+Diff": 2, "Target": 2}
 
-    fig, axes = plt.subplots(1, n_vars, figsize=(5 * n_vars, 4.5))
-    if n_vars == 1:
-        axes = [axes]
+    ncols = 3
+    nrows = (n_vars + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 5 * nrows))
+    axes_flat = np.array(axes).flatten()
+    # hide unused panels
+    for extra_ax in axes_flat[n_vars:]:
+        extra_ax.set_visible(False)
 
-    for ax, vname in zip(axes, var_names):
+    for ax, vname in zip(axes_flat[:n_vars], var_names):
         for stage in stages:
             if len(spectra[stage][vname]) == 0:
                 continue
@@ -139,13 +143,13 @@ def compute_stage_spectra(
             ax.loglog(k[:len(mean_ps)], mean_ps,
                       color=colors[stage], lw=linewidths[stage],
                       label=stage, alpha=0.9)
-        ax.set_xlabel("Wavenumber k")
-        ax.set_ylabel("Power")
-        ax.set_title(VARIABLE_NAMES.get(vname, vname))
-        ax.legend(fontsize=7)
+        ax.set_xlabel("Wavenumber k", fontsize=10)
+        ax.set_ylabel("Power", fontsize=10)
+        ax.set_title(VARIABLE_NAMES.get(vname, vname), fontsize=14, fontweight="bold")
+        ax.legend(fontsize=8)
         ax.grid(True, alpha=0.3)
 
-    fig.suptitle("Power Spectra at Each Pipeline Stage", y=1.02, fontsize=14)
+    fig.suptitle("Power Spectra at Each Pipeline Stage", y=1.02, fontsize=16, fontweight="bold")
     fig.tight_layout()
     fig.savefig(out / "stage_spectra.png", dpi=200, bbox_inches="tight")
     plt.close(fig)

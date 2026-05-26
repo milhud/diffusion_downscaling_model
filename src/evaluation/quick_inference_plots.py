@@ -34,17 +34,17 @@ def _denorm_channel(arr, mean, std):
     return arr * std + mean
 
 
-def plot_sample(era5, target, drn_pred, ensemble, var_names, stats, sample_idx, out_dir):
-    """One figure: rows=vars, cols=ERA5|Target|DRN|Diff|Spread|Error."""
+def plot_sample(era5, target, drn_pred, ensemble, var_names, stats, sample_idx, out_dir,
+                lat=None, lon=None):
+    """One figure: rows=vars, cols=ERA5|Target|DRN|Diff mean|Error."""
     n_vars = len(var_names)
-    fig, axes = plt.subplots(n_vars, 6, figsize=(22, 3.5 * n_vars))
+    fig, axes = plt.subplots(n_vars, 5, figsize=(19, 3.5 * n_vars))
     if n_vars == 1:
         axes = axes[None, :]
 
-    col_titles = ["ERA5 (interp)", "Target", "DRN", "Diff mean", "Spread", "Error (Diff−Target)"]
+    col_titles = ["ERA5 (interp)", "Target", "DRN", "Ensemble mean", "Error (Ens−Target)"]
 
     ens_mean = ensemble.mean(axis=0)   # (C, H, W)
-    ens_std  = ensemble.std(axis=0)    # (C, H, W)
 
     for vi, v in enumerate(var_names):
         si = CONUS404_VARS.index(v) if v in CONUS404_VARS else vi
@@ -53,35 +53,47 @@ def plot_sample(era5, target, drn_pred, ensemble, var_names, stats, sample_idx, 
         e_mean = float(stats.era5_mean[si]) if si < len(stats.era5_mean) else c_mean
         e_std  = float(stats.era5_std[si])  if si < len(stats.era5_std)  else c_std
 
-        era5_phys   = _denorm_channel(era5[vi],       e_mean, e_std)
-        tgt_phys    = _denorm_channel(target[vi],     c_mean, c_std)
-        drn_phys    = _denorm_channel(drn_pred[vi],   c_mean, c_std)
-        diff_phys   = _denorm_channel(ens_mean[vi],   c_mean, c_std)
-        spread_phys = ens_std[vi] * c_std
-        error_phys  = diff_phys - tgt_phys
+        era5_phys  = _denorm_channel(era5[vi],      e_mean, e_std)
+        tgt_phys   = _denorm_channel(target[vi],    c_mean, c_std)
+        drn_phys   = _denorm_channel(drn_pred[vi],  c_mean, c_std)
+        diff_phys  = _denorm_channel(ens_mean[vi],  c_mean, c_std)
+        error_phys = diff_phys - tgt_phys
 
         unit = VARIABLE_UNITS.get(v, "")
         cmap = CMAPS.get(v, "viridis")
 
-        panels = [era5_phys, tgt_phys, drn_phys, diff_phys, spread_phys, error_phys]
-        err_abs = np.abs(error_phys).max()
+        panels = [era5_phys, tgt_phys, drn_phys, diff_phys, error_phys]
+        err_abs = np.nanpercentile(np.abs(error_phys), 95)
+
+        H, W = tgt_phys.shape
+        extent = [0, W, 0, H]
+        if lat is not None and lon is not None:
+            extent = [lon[0], lon[-1], lat[0], lat[-1]]
 
         for ci, (ax, data) in enumerate(zip(axes[vi], panels)):
-            if ci == 5:  # error: diverging
+            if ci == 4:  # error: diverging, 95th pct clip
                 vmax = max(err_abs, 1e-6)
-                im = ax.imshow(data, origin="lower", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
-            elif ci == 4:  # spread: sequential
-                im = ax.imshow(data, origin="lower", cmap="YlOrRd")
+                im = ax.imshow(data, origin="lower", cmap="RdBu_r",
+                               vmin=-vmax, vmax=vmax, extent=extent, aspect="auto")
             else:
                 vmin = np.nanpercentile(tgt_phys, 2)
                 vmax = np.nanpercentile(tgt_phys, 98)
-                im = ax.imshow(data, origin="lower", cmap=cmap, vmin=vmin, vmax=vmax)
-            ax.axis("off")
+                im = ax.imshow(data, origin="lower", cmap=cmap,
+                               vmin=vmin, vmax=vmax, extent=extent, aspect="auto")
+            if lat is not None and lon is not None:
+                ax.set_xlabel("Lon", fontsize=7)
+                if ci == 0:
+                    ax.set_ylabel(f"{VARIABLE_NAMES.get(v, v)}\nLat", fontsize=8)
+                else:
+                    ax.set_yticks([])
+                ax.tick_params(labelsize=6)
+            else:
+                ax.axis("off")
+                if ci == 0:
+                    ax.set_ylabel(VARIABLE_NAMES.get(v, v), fontsize=9)
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.02, label=unit)
             if vi == 0:
-                ax.set_title(col_titles[ci], fontsize=9)
-            if ci == 0:
-                ax.set_ylabel(VARIABLE_NAMES.get(v, v), fontsize=9)
+                ax.set_title(col_titles[ci], fontsize=10, fontweight="bold")
 
     fig.suptitle(f"Sample {sample_idx+1}: ERA5→CONUS404 Downscaling (4-member ensemble, 16 steps)",
                  fontsize=11, y=1.01)
@@ -164,6 +176,9 @@ def main():
     for rank, (r, *_) in enumerate(best):
         print(f"  rank {rank+1}: RMSE={r:.4f}")
 
+    # Pixel-index axes (real lat/lon not available without conus_lat array)
+    pix = np.arange(256)
+
     for plot_idx, (_, era5_np, conus_np, drn_np, ens_np) in enumerate(best):
         plot_sample(
             era5=era5_np[var_indices],
@@ -174,6 +189,8 @@ def main():
             stats=stats,
             sample_idx=plot_idx,
             out_dir=out,
+            lat=pix,
+            lon=pix,
         )
 
     print(f"\n[QuickInference] {args.num_samples} samples saved to {out}/")
