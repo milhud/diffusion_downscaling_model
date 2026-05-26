@@ -46,6 +46,8 @@ echo "GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || ec
 echo "Date: $(date)"
 echo "============================================"
 
+CACHE_DIR="/discover/nobackup/sduan/.data"
+
 case "$ANALYSIS" in
 
   ensemble)
@@ -54,6 +56,7 @@ case "$ANALYSIS" in
       --num_members 32 \
       --num_steps 32 \
       --output_dir results/ensemble \
+      --cache_dir "$CACHE_DIR" \
       $EXTRA_ARGS
     ;;
 
@@ -64,6 +67,7 @@ case "$ANALYSIS" in
       --num_steps 32 \
       --num_ensemble 4 \
       --max_batches 50 \
+      --cache_dir "$CACHE_DIR" \
       $EXTRA_ARGS
     ;;
 
@@ -74,6 +78,7 @@ case "$ANALYSIS" in
       --steps 2 4 8 16 32 64 \
       --num_ensemble 8 \
       --max_batches 20 \
+      --cache_dir "$CACHE_DIR" \
       $EXTRA_ARGS
     ;;
 
@@ -82,6 +87,7 @@ case "$ANALYSIS" in
     python -m src.evaluation.compute_benchmark \
       --output_dir results/benchmark \
       --num_steps 4 8 16 32 \
+      --cache_dir "$CACHE_DIR" \
       $EXTRA_ARGS
     ;;
 
@@ -90,6 +96,7 @@ case "$ANALYSIS" in
     python -m src.evaluation.latent_analysis \
       --output_dir results/latent_analysis \
       --max_batches 30 \
+      --cache_dir "$CACHE_DIR" \
       $EXTRA_ARGS
     ;;
 
@@ -100,6 +107,7 @@ case "$ANALYSIS" in
       --early_years 1980 1981 1982 1983 1984 1985 1986 1987 1988 1989 \
       --late_years 2011 2012 2013 2014 2015 2016 2017 2018 2019 2020 \
       --samples_per_year 30 \
+      --cache_dir "$CACHE_DIR" \
       $EXTRA_ARGS
     ;;
 
@@ -109,6 +117,7 @@ case "$ANALYSIS" in
       --checkpoint_dir checkpoints/ablation_pixel \
       --plot_dir train_plots/ablation_pixel \
       --epochs 50 \
+      --cache_dir "$CACHE_DIR" \
       $EXTRA_ARGS
     ;;
 
@@ -117,6 +126,7 @@ case "$ANALYSIS" in
     python -m src.evaluation.ablation_compression \
       --checkpoint_dir checkpoints/ablation_compression \
       --plot_dir train_plots/ablation_compression \
+      --cache_dir "$CACHE_DIR" \
       $EXTRA_ARGS
     ;;
 
@@ -127,17 +137,18 @@ case "$ANALYSIS" in
       --num_members 16 \
       --num_steps 32 \
       --max_batches 80 \
+      --cache_dir "$CACHE_DIR" \
       $EXTRA_ARGS
     ;;
 
   all_eval)
     echo "Running all evaluation analyses (ensemble + spectra + step ablation + comprehensive)..."
-    python -m src.evaluation.ensemble_eval --num_members 32 --num_steps 32 --output_dir results/ensemble $EXTRA_ARGS
-    python -m src.evaluation.stage_spectra --output_dir results/spectra --max_batches 50 $EXTRA_ARGS
-    python -m src.evaluation.step_ablation --output_dir results/step_ablation --max_batches 20 $EXTRA_ARGS
-    python -m src.evaluation.latent_analysis --output_dir results/latent_analysis $EXTRA_ARGS
-    python -m src.evaluation.compute_benchmark --output_dir results/benchmark $EXTRA_ARGS
-    python -m src.evaluation.comprehensive_eval --output_dir results/comprehensive --num_members 16 --num_steps 32 --max_batches 80 $EXTRA_ARGS
+    python -m src.evaluation.ensemble_eval --num_members 32 --num_steps 32 --output_dir results/ensemble --cache_dir "$CACHE_DIR" $EXTRA_ARGS
+    python -m src.evaluation.stage_spectra --output_dir results/spectra --max_batches 50 --cache_dir "$CACHE_DIR" $EXTRA_ARGS
+    python -m src.evaluation.step_ablation --output_dir results/step_ablation --max_batches 20 --cache_dir "$CACHE_DIR" $EXTRA_ARGS
+    python -m src.evaluation.latent_analysis --output_dir results/latent_analysis --cache_dir "$CACHE_DIR" $EXTRA_ARGS
+    python -m src.evaluation.compute_benchmark --output_dir results/benchmark --cache_dir "$CACHE_DIR" $EXTRA_ARGS
+    python -m src.evaluation.comprehensive_eval --output_dir results/comprehensive --num_members 16 --num_steps 32 --max_batches 80 --cache_dir "$CACHE_DIR" $EXTRA_ARGS
     ;;
 
   *)

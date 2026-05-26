@@ -22,7 +22,10 @@ from src.preprocessing.land_mask import get_valid_patch_origins
 from src.data.dataset import build_dataloaders
 
 
-def load_land_mask_from_cache(cache_dir: str = "cached_data") -> np.ndarray:
+CACHE_DIR = "/discover/nobackup/sduan/.data"
+
+
+def load_land_mask_from_cache(cache_dir: str = CACHE_DIR) -> np.ndarray:
     """Extract binary land mask from static_fields.npy channel 5 (lsm)."""
     static = np.load(Path(cache_dir) / "static_fields.npy")
     return (static[5] >= 0.5)
@@ -30,7 +33,7 @@ def load_land_mask_from_cache(cache_dir: str = "cached_data") -> np.ndarray:
 
 def build_test_dataloader(
     data_dir: str = "data",
-    cache_dir: str = "cached_data",
+    cache_dir: str = CACHE_DIR,
     batch_size: int = 4,
     num_workers: int = 2,
     patches_per_day: int = 1,
