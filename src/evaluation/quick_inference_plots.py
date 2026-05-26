@@ -47,10 +47,11 @@ def plot_sample(era5, target, drn_pred, ensemble, var_names, stats, sample_idx, 
     ens_std  = ensemble.std(axis=0)    # (C, H, W)
 
     for vi, v in enumerate(var_names):
-        c_mean = float(stats.conus_mean[vi])
-        c_std  = float(stats.conus_std[vi])
-        e_mean = float(stats.era5_mean[vi]) if vi < len(stats.era5_mean) else c_mean
-        e_std  = float(stats.era5_std[vi])  if vi < len(stats.era5_std)  else c_std
+        si = CONUS404_VARS.index(v) if v in CONUS404_VARS else vi
+        c_mean = float(stats.conus_mean[si])
+        c_std  = float(stats.conus_std[si])
+        e_mean = float(stats.era5_mean[si]) if si < len(stats.era5_mean) else c_mean
+        e_std  = float(stats.era5_std[si])  if si < len(stats.era5_std)  else c_std
 
         era5_phys   = _denorm_channel(era5[vi],       e_mean, e_std)
         tgt_phys    = _denorm_channel(target[vi],     c_mean, c_std)
@@ -105,6 +106,8 @@ def main():
     parser.add_argument("--cache_dir",       default="/discover/nobackup/sduan/.data")
     parser.add_argument("--scan",            type=int,   default=0,
                         help="Scan this many patches and keep --num_samples with lowest RMSE. 0=sequential.")
+    parser.add_argument("--vars",            nargs="+",  default=None,
+                        help="Subset of variables to plot, e.g. --vars T2 U10 PREC_ACC_NC")
     args = parser.parse_args()
 
     from src.evaluation._eval_setup import build_test_dataloader, load_models
@@ -119,6 +122,9 @@ def main():
 
     drn, vae, diff_model, ema, schedule = load_models(
         args.drn_checkpoint, args.vae_checkpoint, args.diff_checkpoint, args.device)
+
+    plot_vars = args.vars if args.vars else CONUS404_VARS
+    var_indices = [CONUS404_VARS.index(v) for v in plot_vars]
 
     n_scan = args.scan if args.scan > 0 else args.num_samples
     candidates = []  # list of (rmse, era5_up_np, conus_np, drn_np, ensemble_np)
@@ -160,11 +166,11 @@ def main():
 
     for plot_idx, (_, era5_np, conus_np, drn_np, ens_np) in enumerate(best):
         plot_sample(
-            era5=era5_np,
-            target=conus_np,
-            drn_pred=drn_np,
-            ensemble=ens_np,
-            var_names=CONUS404_VARS,
+            era5=era5_np[var_indices],
+            target=conus_np[var_indices],
+            drn_pred=drn_np[var_indices],
+            ensemble=ens_np[:, var_indices],
+            var_names=plot_vars,
             stats=stats,
             sample_idx=plot_idx,
             out_dir=out,
