@@ -85,7 +85,7 @@ def run_step_ablation(
                     r = rmse(ens_mean[b, 0].cpu().numpy(), conus[b, 0].cpu().numpy())
                     results[ns]["rmse"].append(r)
 
-                    ens_flat = ensemble[b, :, 0].cpu().numpy().reshape(num_ensemble, -1).T
+                    ens_flat = ensemble[b, :, 0].cpu().numpy().reshape(num_ensemble, -1)
                     tgt_flat = conus[b, 0].cpu().numpy().flatten()
                     c = crps_ensemble(tgt_flat, ens_flat)
                     results[ns]["crps"].append(c)

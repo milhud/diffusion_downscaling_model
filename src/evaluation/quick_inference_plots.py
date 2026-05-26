@@ -1,0 +1,154 @@
+"""Quick inference visualization: ERA5 | Target | DRN | Diff mean | Spread | Error.
+
+Grabs N random test patches, runs 4-member ensemble with 16 steps.
+One figure per sample, one row per variable.
+
+Usage:
+    python -m src.evaluation.quick_inference_plots --num_samples 6 --output_dir results/inference_plots
+"""
+
+import argparse
+import numpy as np
+import torch
+from pathlib import Path
+
+from config import CONUS404_VARS, ERA5_VARS, VARIABLE_NAMES, VARIABLE_UNITS, OUT_CH, IN_CH
+from src.inference.pipeline import run_pipeline
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+
+CMAPS = {
+    "T2":           "RdBu_r",
+    "TD2":          "BrBG",
+    "U10":          "PuOr",
+    "V10":          "PuOr",
+    "PSFC":         "viridis",
+    "PREC_ACC_NC":  "Blues",
+}
+
+
+def _denorm_channel(arr, mean, std):
+    return arr * std + mean
+
+
+def plot_sample(era5, target, drn_pred, ensemble, var_names, stats, sample_idx, out_dir):
+    """One figure: rows=vars, cols=ERA5|Target|DRN|Diff|Spread|Error."""
+    n_vars = len(var_names)
+    fig, axes = plt.subplots(n_vars, 6, figsize=(22, 3.5 * n_vars))
+    if n_vars == 1:
+        axes = axes[None, :]
+
+    col_titles = ["ERA5 (interp)", "Target", "DRN", "Diff mean", "Spread", "Error (Diff−Target)"]
+
+    ens_mean = ensemble.mean(axis=0)   # (C, H, W)
+    ens_std  = ensemble.std(axis=0)    # (C, H, W)
+
+    for vi, v in enumerate(var_names):
+        c_mean = float(stats.conus_mean[vi])
+        c_std  = float(stats.conus_std[vi])
+        e_mean = float(stats.era5_mean[vi]) if vi < len(stats.era5_mean) else c_mean
+        e_std  = float(stats.era5_std[vi])  if vi < len(stats.era5_std)  else c_std
+
+        era5_phys   = _denorm_channel(era5[vi],       e_mean, e_std)
+        tgt_phys    = _denorm_channel(target[vi],     c_mean, c_std)
+        drn_phys    = _denorm_channel(drn_pred[vi],   c_mean, c_std)
+        diff_phys   = _denorm_channel(ens_mean[vi],   c_mean, c_std)
+        spread_phys = ens_std[vi] * c_std
+        error_phys  = diff_phys - tgt_phys
+
+        unit = VARIABLE_UNITS.get(v, "")
+        cmap = CMAPS.get(v, "viridis")
+
+        panels = [era5_phys, tgt_phys, drn_phys, diff_phys, spread_phys, error_phys]
+        err_abs = np.abs(error_phys).max()
+
+        for ci, (ax, data) in enumerate(zip(axes[vi], panels)):
+            if ci == 5:  # error: diverging
+                vmax = max(err_abs, 1e-6)
+                im = ax.imshow(data, origin="lower", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+            elif ci == 4:  # spread: sequential
+                im = ax.imshow(data, origin="lower", cmap="YlOrRd")
+            else:
+                vmin = np.nanpercentile(tgt_phys, 2)
+                vmax = np.nanpercentile(tgt_phys, 98)
+                im = ax.imshow(data, origin="lower", cmap=cmap, vmin=vmin, vmax=vmax)
+            ax.axis("off")
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.02, label=unit)
+            if vi == 0:
+                ax.set_title(col_titles[ci], fontsize=9)
+            if ci == 0:
+                ax.set_ylabel(VARIABLE_NAMES.get(v, v), fontsize=9)
+
+    fig.suptitle(f"Sample {sample_idx+1}: ERA5→CONUS404 Downscaling (4-member ensemble, 16 steps)",
+                 fontsize=11, y=1.01)
+    fig.tight_layout()
+    path = out_dir / f"sample_{sample_idx+1:02d}.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved {path}")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_samples",    type=int,   default=6)
+    parser.add_argument("--num_members",    type=int,   default=4)
+    parser.add_argument("--num_steps",      type=int,   default=16)
+    parser.add_argument("--output_dir",     default="results/inference_plots")
+    parser.add_argument("--drn_checkpoint",  default="checkpoints/drn_best.pt")
+    parser.add_argument("--vae_checkpoint",  default="checkpoints/vae_best.pt")
+    parser.add_argument("--diff_checkpoint", default="checkpoints/diffusion_best.pt")
+    parser.add_argument("--device",          default="cuda")
+    parser.add_argument("--data_dir",        default="data")
+    parser.add_argument("--cache_dir",       default="/discover/nobackup/sduan/.data")
+    args = parser.parse_args()
+
+    from src.evaluation._eval_setup import build_test_dataloader, load_models
+    import torch.nn.functional as F
+
+    out = Path(args.output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    test_dl, stats, _, _ = build_test_dataloader(
+        data_dir=args.data_dir, cache_dir=args.cache_dir,
+        batch_size=1, num_workers=2, patches_per_day=1)
+
+    drn, vae, diff_model, ema, schedule = load_models(
+        args.drn_checkpoint, args.vae_checkpoint, args.diff_checkpoint, args.device)
+
+    # ERA5 has IN_CH channels; first OUT_CH match CONUS vars (roughly)
+    era5_for_plot_chs = list(range(OUT_CH))  # first 6 = matched ERA5 vars
+
+    with torch.no_grad(), ema.apply():
+        for i, (era5, conus) in enumerate(test_dl):
+            if i >= args.num_samples:
+                break
+            era5 = era5.to(args.device)
+            conus = conus.to(args.device)
+
+            drn_pred, samples = run_pipeline(
+                era5, drn, vae, diff_model, schedule,
+                num_steps=args.num_steps, num_samples=args.num_members,
+                device=args.device)
+
+            # ERA5 upsampled to CONUS grid for display
+            era5_up = F.interpolate(era5[:, :OUT_CH], (256, 256), mode="bilinear", align_corners=False)
+
+            plot_sample(
+                era5=era5_up[0].cpu().numpy(),
+                target=conus[0].cpu().numpy(),
+                drn_pred=drn_pred[0].cpu().numpy(),
+                ensemble=samples[0].cpu().numpy(),   # (M, C, H, W)
+                var_names=CONUS404_VARS,
+                stats=stats,
+                sample_idx=i,
+                out_dir=out,
+            )
+
+    print(f"\n[QuickInference] {args.num_samples} samples saved to {out}/")
+
+
+if __name__ == "__main__":
+    main()
