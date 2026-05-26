@@ -120,19 +120,30 @@ case "$ANALYSIS" in
       $EXTRA_ARGS
     ;;
 
+  comprehensive)
+    echo "Running comprehensive paper-ready evaluation..."
+    python -m src.evaluation.comprehensive_eval \
+      --output_dir results/comprehensive \
+      --num_members 16 \
+      --num_steps 32 \
+      --max_batches 80 \
+      $EXTRA_ARGS
+    ;;
+
   all_eval)
-    echo "Running all evaluation analyses (ensemble + spectra + step ablation)..."
+    echo "Running all evaluation analyses (ensemble + spectra + step ablation + comprehensive)..."
     python -m src.evaluation.ensemble_eval --num_members 32 --num_steps 32 --output_dir results/ensemble $EXTRA_ARGS
     python -m src.evaluation.stage_spectra --output_dir results/spectra --max_batches 50 $EXTRA_ARGS
     python -m src.evaluation.step_ablation --output_dir results/step_ablation --max_batches 20 $EXTRA_ARGS
     python -m src.evaluation.latent_analysis --output_dir results/latent_analysis $EXTRA_ARGS
     python -m src.evaluation.compute_benchmark --output_dir results/benchmark $EXTRA_ARGS
+    python -m src.evaluation.comprehensive_eval --output_dir results/comprehensive --num_members 16 --num_steps 32 --max_batches 80 $EXTRA_ARGS
     ;;
 
   *)
     echo "Unknown analysis: $ANALYSIS"
     echo "Available: ensemble, spectra, step_ablation, benchmark, latent, climate,"
-    echo "           ablation_pixel, ablation_compression, all_eval"
+    echo "           ablation_pixel, ablation_compression, comprehensive, all_eval"
     exit 1
     ;;
 esac

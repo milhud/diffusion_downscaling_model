@@ -100,41 +100,18 @@ def main():
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
+    from src.evaluation._eval_setup import load_land_mask_from_cache, load_models
     from src.preprocessing.normalization import NormalizationStats
-    from src.preprocessing.land_mask import build_conus404_land_mask, get_valid_patch_origins
-    import xarray as xr
+    from src.preprocessing.land_mask import get_valid_patch_origins
 
     stats = NormalizationStats()
     stats.load("norm_stats.npz")
 
-    with xr.open_dataset(f"{args.data_dir}/era5_1980.nc") as ds:
-        land_mask = build_conus404_land_mask(
-            xr.open_dataset(f"{args.data_dir}/conus404_yearly_1980.nc")["lat"].values,
-            xr.open_dataset(f"{args.data_dir}/conus404_yearly_1980.nc")["lon"].values, ds)
+    land_mask = load_land_mask_from_cache(args.cache_dir)
     valid_origins = get_valid_patch_origins(land_mask, PATCH_SIZE, TRAIN["min_land_frac"])
 
-    # Load models
-    drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=MODEL["drn_base_ch"],
-              ch_mults=MODEL["drn_ch_mults"], num_res_blocks=MODEL["drn_num_res_blocks"],
-              attn_resolutions=MODEL["drn_attn_resolutions"])
-    drn.load_state_dict(torch.load(args.drn_checkpoint)["model_state_dict"])
-
-    vae = VAE(in_ch=OUT_CH, latent_ch=LATENT_CH, base_ch=MODEL["vae_base_ch"])
-    vae.load_state_dict(torch.load(args.vae_checkpoint)["model_state_dict"])
-
-    diff_in_ch = LATENT_CH + IN_CH + LATENT_CH + 2
-    diff_model = DiffusionUNet(
-        in_ch=diff_in_ch, out_ch=LATENT_CH, base_ch=MODEL["diff_base_ch"],
-        ch_mults=MODEL["diff_ch_mults"], num_res_blocks=MODEL["diff_num_res_blocks"],
-        attn_resolutions=MODEL["diff_attn_resolutions"], time_dim=MODEL["diff_time_dim"])
-    ckpt = torch.load(args.diff_checkpoint)
-    diff_model.load_state_dict(ckpt["model_state_dict"])
-
-    ema = EMA(diff_model, decay=TRAIN["ema_decay"])
-    if "ema_state_dict" in ckpt:
-        ema.load_state_dict(ckpt["ema_state_dict"])
-
-    schedule = EDMSchedule()
+    drn, vae, diff_model, ema, schedule = load_models(
+        args.drn_checkpoint, args.vae_checkpoint, args.diff_checkpoint, args.device)
 
     print(f"Computing early period climatology ({args.early_years[0]}-{args.early_years[-1]})...")
     early_tgt, early_pred, early_drn = compute_period_climatology(

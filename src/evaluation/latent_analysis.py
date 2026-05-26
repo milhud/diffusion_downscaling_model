@@ -157,41 +157,14 @@ def main():
     parser.add_argument("--cache_dir", default="cached_data")
     args = parser.parse_args()
 
-    from src.preprocessing.normalization import NormalizationStats
-    from src.preprocessing.land_mask import build_conus404_land_mask, get_valid_patch_origins
-    from src.preprocessing.regrid import ERA5Regridder
-    from src.data.dataset import build_dataloaders
-    import xarray as xr
+    from src.evaluation._eval_setup import build_test_dataloader, load_models
 
-    stats = NormalizationStats()
-    stats.load("norm_stats.npz")
+    test_dl, stats, land_mask, valid_origins = build_test_dataloader(
+        data_dir=args.data_dir, cache_dir=args.cache_dir,
+        batch_size=4, num_workers=2, patches_per_day=1)
 
-    with xr.open_dataset(f"{args.data_dir}/era5_1980.nc") as ds:
-        era5_lat, era5_lon = ds["latitude"].values, ds["longitude"].values
-        land_mask = build_conus404_land_mask(
-            xr.open_dataset(f"{args.data_dir}/conus404_yearly_1980.nc")["lat"].values,
-            xr.open_dataset(f"{args.data_dir}/conus404_yearly_1980.nc")["lon"].values, ds)
-    with xr.open_dataset(f"{args.data_dir}/conus404_yearly_1980.nc") as ds:
-        conus_lat, conus_lon = ds["lat"].values, ds["lon"].values
-
-    regridder = ERA5Regridder(era5_lat, era5_lon, conus_lat, conus_lon)
-    valid_origins = get_valid_patch_origins(land_mask, PATCH_SIZE, TRAIN["min_land_frac"])
-
-    _, test_dl = build_dataloaders(
-        args.data_dir, stats, batch_size=4, patches_per_day=1, num_workers=2,
-        train_years=TRAIN["train_years"], val_years=TRAIN["test_years"],
-        land_mask=land_mask, valid_origins=valid_origins,
-        era5_vars=ERA5_VARS, conus_vars=CONUS404_VARS,
-        cache_dir=args.cache_dir, regridder=regridder,
-        conus_lat=conus_lat, conus_lon=conus_lon)
-
-    drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=MODEL["drn_base_ch"],
-              ch_mults=MODEL["drn_ch_mults"], num_res_blocks=MODEL["drn_num_res_blocks"],
-              attn_resolutions=MODEL["drn_attn_resolutions"])
-    drn.load_state_dict(torch.load(args.drn_checkpoint)["model_state_dict"])
-
-    vae = VAE(in_ch=OUT_CH, latent_ch=LATENT_CH, base_ch=MODEL["vae_base_ch"])
-    vae.load_state_dict(torch.load(args.vae_checkpoint)["model_state_dict"])
+    drn, vae, diff_model, ema, schedule = load_models(
+        args.drn_checkpoint, args.vae_checkpoint, "checkpoints/diffusion_best.pt", args.device)
 
     analyze_latent_space(drn, vae, test_dl, CONUS404_VARS, args.output_dir,
                          device=args.device, max_batches=args.max_batches)

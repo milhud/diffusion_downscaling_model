@@ -134,24 +134,15 @@ def main():
         plot_compression_comparison(args.plot_dir)
         return
 
+    from src.evaluation._eval_setup import load_land_mask_from_cache
     from src.preprocessing.normalization import NormalizationStats
-    from src.preprocessing.land_mask import build_conus404_land_mask, get_valid_patch_origins
-    from src.preprocessing.regrid import ERA5Regridder
+    from src.preprocessing.land_mask import get_valid_patch_origins
     from src.data.dataset import build_dataloaders
-    import xarray as xr
 
     stats = NormalizationStats()
     stats.load("norm_stats.npz")
 
-    with xr.open_dataset(f"{args.data_dir}/era5_1980.nc") as ds:
-        era5_lat, era5_lon = ds["latitude"].values, ds["longitude"].values
-        land_mask = build_conus404_land_mask(
-            xr.open_dataset(f"{args.data_dir}/conus404_yearly_1980.nc")["lat"].values,
-            xr.open_dataset(f"{args.data_dir}/conus404_yearly_1980.nc")["lon"].values, ds)
-    with xr.open_dataset(f"{args.data_dir}/conus404_yearly_1980.nc") as ds:
-        conus_lat, conus_lon = ds["lat"].values, ds["lon"].values
-
-    regridder = ERA5Regridder(era5_lat, era5_lon, conus_lat, conus_lon)
+    land_mask = load_land_mask_from_cache(args.cache_dir)
     valid_origins = get_valid_patch_origins(land_mask, PATCH_SIZE, TRAIN["min_land_frac"])
 
     train_dl, val_dl = build_dataloaders(
@@ -160,8 +151,8 @@ def main():
         train_years=TRAIN["train_years"], val_years=TRAIN["val_years"],
         land_mask=land_mask, valid_origins=valid_origins,
         era5_vars=ERA5_VARS, conus_vars=CONUS404_VARS,
-        cache_dir=args.cache_dir, regridder=regridder,
-        conus_lat=conus_lat, conus_lon=conus_lon)
+        cache_dir=args.cache_dir, regridder=None,
+        conus_lat=None, conus_lon=None)
 
     drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=MODEL["drn_base_ch"],
               ch_mults=MODEL["drn_ch_mults"],

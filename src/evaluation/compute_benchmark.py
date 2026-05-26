@@ -45,6 +45,11 @@ def main():
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--output_dir", default="results/benchmark")
     parser.add_argument("--num_steps", type=int, nargs="+", default=[4, 8, 16, 32])
+    parser.add_argument("--drn_checkpoint",  default="checkpoints/drn_best.pt")
+    parser.add_argument("--vae_checkpoint",  default="checkpoints/vae_best.pt")
+    parser.add_argument("--diff_checkpoint", default="checkpoints/diffusion_best.pt")
+    parser.add_argument("--data_dir",  default="data")
+    parser.add_argument("--cache_dir", default="cached_data")
     args = parser.parse_args()
 
     out = Path(args.output_dir)
@@ -56,23 +61,14 @@ def main():
     from src.models.vae import VAE
     from src.models.diffusion_unet import DiffusionUNet
     from src.models.edm import EDMSchedule, heun_sampler
+    from src.evaluation._eval_setup import build_test_dataloader, load_models
 
-    # Build models
-    drn = DRN(in_ch=IN_CH, out_ch=OUT_CH, base_ch=MODEL["drn_base_ch"],
-              ch_mults=MODEL["drn_ch_mults"], num_res_blocks=MODEL["drn_num_res_blocks"],
-              attn_resolutions=MODEL["drn_attn_resolutions"]).to(device).eval()
+    # Load trained models
+    drn, vae, latent_diff, ema, schedule = load_models(
+        args.drn_checkpoint, args.vae_checkpoint, args.diff_checkpoint, device)
+    drn.eval(); vae.eval(); latent_diff.eval()
 
-    vae = VAE(in_ch=OUT_CH, latent_ch=LATENT_CH, base_ch=MODEL["vae_base_ch"]).to(device).eval()
-
-    # Latent diffusion
-    diff_in_ch = LATENT_CH + IN_CH + LATENT_CH + 2
-    latent_diff = DiffusionUNet(
-        in_ch=diff_in_ch, out_ch=LATENT_CH, base_ch=MODEL["diff_base_ch"],
-        ch_mults=MODEL["diff_ch_mults"], num_res_blocks=MODEL["diff_num_res_blocks"],
-        attn_resolutions=MODEL["diff_attn_resolutions"],
-        time_dim=MODEL["diff_time_dim"]).to(device).eval()
-
-    # Pixel diffusion (same architecture but different I/O sizes)
+    # Pixel diffusion (same architecture but different I/O sizes — random weights for timing)
     pixel_diff_in_ch = OUT_CH + IN_CH + OUT_CH + 2
     pixel_diff = DiffusionUNet(
         in_ch=pixel_diff_in_ch, out_ch=OUT_CH, base_ch=MODEL["diff_base_ch"],
@@ -80,11 +76,13 @@ def main():
         attn_resolutions=MODEL["diff_attn_resolutions"],
         time_dim=MODEL["diff_time_dim"]).to(device).eval()
 
-    schedule = EDMSchedule()
-
-    # Dummy inputs
-    era5_input = torch.randn(B, IN_CH, PATCH_SIZE, PATCH_SIZE, device=device)
-    conus_target = torch.randn(B, OUT_CH, PATCH_SIZE, PATCH_SIZE, device=device)
+    # Real inputs from test set (one batch)
+    test_dl, _, _, _ = build_test_dataloader(
+        data_dir=args.data_dir, cache_dir=args.cache_dir, batch_size=B, num_workers=2)
+    era5_input, conus_target = next(iter(test_dl))
+    era5_input = era5_input[:B].to(device)
+    conus_target = conus_target[:B].to(device)
+    print(f"Using real test data: era5={tuple(era5_input.shape)}, conus={tuple(conus_target.shape)}")
 
     print(f"\nBenchmark: batch_size={B}, patch={PATCH_SIZE}x{PATCH_SIZE}")
     print(f"  DRN params: {sum(p.numel() for p in drn.parameters()):,}")

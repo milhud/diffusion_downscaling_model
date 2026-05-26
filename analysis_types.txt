@@ -1,0 +1,103 @@
+Here's a comprehensive list of all evaluation methods, metrics, and analyses used across both papers:
+
+---
+
+## Mardani et al. (CorrDiff) — *Communications Earth & Environment* 2025
+
+**Deterministic Skill Metrics**
+- Mean Absolute Error (MAE) — evaluated on ensemble mean and all baselines
+- Continuous Ranked Probability Score (CRPS) — using 32-member ensembles
+- Pooled CRPS and MAE scores (Supplementary Table S3)
+- Statistical significance testing between model differences (Supplementary Section 7.4)
+
+**Spectral Analysis**
+- Power spectra of kinetic energy (KE) at 10m
+- Power spectra of 2m temperature
+- Power spectra of radar reflectivity
+- Wavenumber vs. energy plots to assess scale-selective variance restoration
+
+**Distributional Analysis**
+- Log-PDF plots of 10m windspeed
+- Log-PDF plots of 2m temperature
+- Log-PDF plots of radar reflectivity
+- Tail behavior assessment (extreme value coverage)
+
+**Calibration Analysis**
+- Spread-skill ratio plots (ensemble std vs. RMSE of ensemble mean) — for all 4 output channels
+- Rank histograms (Talagrand diagrams) — for all 4 channels
+- Spread adjusted by factor √(1 + 1/n) per Fortin et al. (2015)
+
+**Case Study Analyses**
+- Cold front: multivariate cross-sections of temperature gradient, along-front wind, across-front wind shear; 21-line averaged NW-SE cross sections; comparison of ERA5 vs. CorrDiff vs. WRF target
+- Typhoon Haikui (2023): windspeed PDF (log scale), axisymmetric radial wind profile, radius of maximum winds, ensemble spread visualization
+- Extended typhoon analysis: 600 typhoon-containing time intervals 1980–2020 (Supplementary)
+- Additional typhoon: Chanthu (2021) (Supplementary)
+- Frontal boundary sharpness across multiple samples (Supplementary Section 7.1)
+
+**Baselines Compared Against**
+- ERA5 bilinear interpolation
+- Random Forest (100 trees, per-channel, per-gridpoint)
+- UNet regression (deterministic mean prediction)
+
+**Efficiency Analysis**
+- Inference time comparison vs. WRF on 928 CPU cores (×652 faster)
+- Energy efficiency comparison (×1,310 more efficient) (Supplementary Section 7.3)
+
+**Variance Analysis**
+- Theoretical variance decomposition using law of total variance (Reynolds decomposition framing)
+- Empirical variance reduction quantification at large scales (Supplementary Section 4)
+
+---
+
+## Lopez-Gomez et al. (R2-D2) — *PNAS* 2025
+
+**Probabilistic Skill Metrics**
+- CRPS (32-member ensembles) — primary metric, land-averaged
+- MAE — deterministic limit of CRPS, for comparisons
+- Root Mean Square Error (RMSE) — in Supplementary
+
+**Distributional Fidelity**
+- Quantile-quantile (Q-Q) plots at specific locations (Ensenada MX, Irvine CA, Portland OR)
+- Land-averaged MAE of downscaled multimodel ensemble quantiles (0.01–0.99)
+- Quantile error analysis at 99th percentile specifically for extreme risk metrics
+
+**Spectral Analysis**
+- Radially averaged energy spectra for all output fields (wind speed, relative humidity, temperature, precipitation)
+
+**Multivariate Analysis**
+- Kernel density estimates (KDE) of joint near-surface wind distributions (Shepherds Flat wind farm, Oregon)
+- Tail dependence analysis of hot-and-dry compound summer extremes in southwestern US
+
+**Bias Analysis**
+- Long-term climatological bias (spatial maps) — temperature, precipitation, windspeed
+- Climate change bias (absolute bias in projected change signal)
+- End-of-century bias assessment (2095–2097)
+- Bias reduction quantified vs. interpolation baseline
+
+**Compound Extreme Event Analysis**
+- Santa Ana Wildfire Threat Index (SAWTI) spatial maps
+- Timing analysis: median day-of-year of top 5% SAWTI conditions (fall), comparing 2025–2027 vs. 2095–2097
+- Generative sample spread analysis to assess coarse-resolution control of extremes (>70% of downscaling error explained)
+
+**Uncertainty Quantification**
+- Multimodel ensemble quantile fidelity assessment (8 ESMs, SSP3-7.0)
+- Comparison vs. 4-member dynamical subensembles (halved ensemble size)
+- Internal variability vs. model uncertainty decomposition
+
+**Baselines Compared Against**
+- Bicubic interpolation (null/zero residual baseline)
+- BCSD (Bias Correction and Spatial Disaggregation)
+- STAR-ESDM (5th US National Climate Assessment method)
+- 4-member dynamically downscaled subensembles
+
+**Generalization Testing**
+- Cross-ESM generalization (trained on CanESM5, tested on 7 unseen ESMs)
+- Climate change generalization (trained 2014–2094, tested 2095–2097)
+- Sensitivity to training ESM choice (Supplementary)
+- Sensitivity to training period length (Supplementary)
+
+**Computational Efficiency**
+- 97.5% cost reduction vs. full dynamical downscaling stage
+- 85% total cost savings when downscaling 8 ESMs
+- Throughput: >800 samples/hour on 16 NVIDIA A100 GPUs (batch size 32)
+- No spin-up time required (unlike physics-based RCMs)
