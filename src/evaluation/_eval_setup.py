@@ -42,7 +42,7 @@ def build_test_dataloader(
     land_mask = load_land_mask_from_cache(cache_dir)
     valid_origins = get_valid_patch_origins(land_mask, PATCH_SIZE, TRAIN["min_land_frac"])
 
-    _, test_dl = build_dataloaders(
+    _, test_dl, _ = build_dataloaders(
         data_dir, stats, batch_size=batch_size,
         patches_per_day=patches_per_day, num_workers=num_workers,
         train_years=TRAIN["train_years"], val_years=TRAIN["test_years"],
