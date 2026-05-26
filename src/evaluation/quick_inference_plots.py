@@ -103,6 +103,8 @@ def main():
     parser.add_argument("--device",          default="cuda")
     parser.add_argument("--data_dir",        default="data")
     parser.add_argument("--cache_dir",       default="/discover/nobackup/sduan/.data")
+    parser.add_argument("--scan",            type=int,   default=0,
+                        help="Scan this many patches and keep --num_samples with lowest RMSE. 0=sequential.")
     args = parser.parse_args()
 
     from src.evaluation._eval_setup import build_test_dataloader, load_models
@@ -118,12 +120,12 @@ def main():
     drn, vae, diff_model, ema, schedule = load_models(
         args.drn_checkpoint, args.vae_checkpoint, args.diff_checkpoint, args.device)
 
-    # ERA5 has IN_CH channels; first OUT_CH match CONUS vars (roughly)
-    era5_for_plot_chs = list(range(OUT_CH))  # first 6 = matched ERA5 vars
+    n_scan = args.scan if args.scan > 0 else args.num_samples
+    candidates = []  # list of (rmse, era5_up_np, conus_np, drn_np, ensemble_np)
 
     with torch.no_grad(), ema.apply():
         for i, (era5, conus) in enumerate(test_dl):
-            if i >= args.num_samples:
+            if i >= n_scan:
                 break
             era5 = era5.to(args.device)
             conus = conus.to(args.device)
@@ -133,19 +135,40 @@ def main():
                 num_steps=args.num_steps, num_samples=args.num_members,
                 device=args.device)
 
-            # ERA5 upsampled to CONUS grid for display
             era5_up = F.interpolate(era5[:, :OUT_CH], (256, 256), mode="bilinear", align_corners=False)
 
-            plot_sample(
-                era5=era5_up[0].cpu().numpy(),
-                target=conus[0].cpu().numpy(),
-                drn_pred=drn_pred[0].cpu().numpy(),
-                ensemble=samples[0].cpu().numpy(),   # (M, C, H, W)
-                var_names=CONUS404_VARS,
-                stats=stats,
-                sample_idx=i,
-                out_dir=out,
-            )
+            ens_mean = samples[0].mean(dim=0)  # (C, H, W)
+            patch_rmse = float(torch.sqrt(((ens_mean - conus[0]) ** 2).mean()).cpu())
+
+            candidates.append((
+                patch_rmse,
+                era5_up[0].cpu().numpy(),
+                conus[0].cpu().numpy(),
+                drn_pred[0].cpu().numpy(),
+                samples[0].cpu().numpy(),
+            ))
+
+            if args.scan > 0:
+                print(f"  Scanned {i+1}/{n_scan}  RMSE={patch_rmse:.4f}")
+
+    # Sort by RMSE ascending, keep best num_samples
+    candidates.sort(key=lambda x: x[0])
+    best = candidates[:args.num_samples]
+    print(f"\n[QuickInference] Best {args.num_samples} patches (lowest RMSE):")
+    for rank, (r, *_) in enumerate(best):
+        print(f"  rank {rank+1}: RMSE={r:.4f}")
+
+    for plot_idx, (_, era5_np, conus_np, drn_np, ens_np) in enumerate(best):
+        plot_sample(
+            era5=era5_np,
+            target=conus_np,
+            drn_pred=drn_np,
+            ensemble=ens_np,
+            var_names=CONUS404_VARS,
+            stats=stats,
+            sample_idx=plot_idx,
+            out_dir=out,
+        )
 
     print(f"\n[QuickInference] {args.num_samples} samples saved to {out}/")
 
