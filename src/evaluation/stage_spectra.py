@@ -50,7 +50,7 @@ def compute_stage_spectra(
     vae.eval()
     diff_model.eval()
 
-    stages = ["ERA5 Interp", "DRN", "DRN+VAE", "DRN+Diff", "Target"]
+    stages = ["ERA5 Interp", "DRN", "Ensemble mean", "Target"]
     spectra = {s: {v: [] for v in var_names} for s in stages}
 
     pos_emb = _make_pos_embedding(64, 64, device)
@@ -71,13 +71,7 @@ def compute_stage_spectra(
             # Stage: DRN
             drn_pred = drn(era5)
 
-            # Stage: DRN+VAE (deterministic reconstruction)
-            residual_true = conus - drn_pred
-            mu, _ = vae.encode(residual_true)
-            vae_recon = vae.decode(mu)
-            drn_vae_pred = drn_pred + vae_recon
-
-            # Stage: DRN+Diff (stochastic, average over ensemble)
+            # Stage: Ensemble mean (DRN + diffusion residual, stochastic)
             era5_down = F.interpolate(era5, size=(64, 64), mode="bilinear", align_corners=False)
             mu_drn, _ = vae.encode(drn_pred)
             B = era5.shape[0]
@@ -105,11 +99,8 @@ def compute_stage_spectra(
                     _, ps = power_spectrum_2d(drn_pred[b, vi].cpu().numpy())
                     spectra["DRN"][vname].append(ps)
 
-                    _, ps = power_spectrum_2d(drn_vae_pred[b, vi].cpu().numpy())
-                    spectra["DRN+VAE"][vname].append(ps)
-
                     _, ps = power_spectrum_2d(diff_mean[b, vi].cpu().numpy())
-                    spectra["DRN+Diff"][vname].append(ps)
+                    spectra["Ensemble mean"][vname].append(ps)
 
                     _, ps = power_spectrum_2d(conus[b, vi].cpu().numpy())
                     spectra["Target"][vname].append(ps)
@@ -122,10 +113,10 @@ def compute_stage_spectra(
 
     # Plot
     n_vars = len(var_names)
-    colors = {"ERA5 Interp": "gray", "DRN": "black", "DRN+VAE": "blue",
-              "DRN+Diff": "red", "Target": "green"}
-    linewidths = {"ERA5 Interp": 1, "DRN": 1.5, "DRN+VAE": 1.5,
-                  "DRN+Diff": 2, "Target": 2}
+    colors = {"ERA5 Interp": "gray", "DRN": "black",
+              "Ensemble mean": "red", "Target": "green"}
+    linewidths = {"ERA5 Interp": 1, "DRN": 1.5,
+                  "Ensemble mean": 2, "Target": 2}
 
     ncols = 3
     nrows = (n_vars + ncols - 1) // ncols

@@ -1,0 +1,20 @@
+Computational Benchmark
+==================================================
+
+Batch size: 1
+Patch size: 256x256
+
+drn_ms: 18.55
+latent_16steps_ms: 1048.16
+latent_32steps_ms: 2124.90
+latent_4steps_ms: 236.45
+latent_8steps_ms: 507.40
+latent_peak_mem_gb: 2.19
+pixel_16steps_ms: 7139.16
+pixel_32steps_ms: 14507.68
+pixel_4steps_ms: 1612.19
+pixel_8steps_ms: 3454.44
+pixel_peak_mem_gb: 11.02
+speedup_32steps: 6.83
+vae_decode_ms: 13.08
+vae_encode_ms: 9.88

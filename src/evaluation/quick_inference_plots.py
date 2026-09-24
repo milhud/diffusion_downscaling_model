@@ -49,13 +49,53 @@ def _denorm_channel(arr, mean, std, var_name=None, is_era5=False):
 
 def plot_sample(era5, target, drn_pred, ensemble, var_names, stats, sample_idx, out_dir,
                 lat=None, lon=None):
-    """One figure: rows=vars, cols=Target|ERA5|DRN|Ensemble mean|Error."""
+    """One figure: rows=vars, cols=Ground Truth|ERA5|DRN|Diffusion|(Ens-GT).
+    The first four (value) panels share one horizontal colorbar under the row;
+    the last (error) panel keeps its own diverging colorbar. Each var gets its
+    own image row (in inches == panel width, so the square 256x256 panels fill
+    their cell edge-to-edge with no gutters) plus a thin dedicated colorbar row
+    directly under it, so the colorbar never eats into the image's own space."""
+    from matplotlib.gridspec import GridSpecFromSubplotSpec
     n_vars = len(var_names)
-    fig, axes = plt.subplots(n_vars, 5, figsize=(19, 3.5 * n_vars))
-    if n_vars == 1:
-        axes = axes[None, :]
+    PANEL_IN = 4.3   # inches per square panel (both width and height)
+    CBAR_IN = 0.42   # inches for the colorbar strip under each var's row
+    GAP_IN = 0.55    # inches between panel row (incl. its Lon xlabel/ticks) and colorbar row
+    COL_GAP_IN = 0.06  # inches between adjacent panels in a row
 
-    col_titles = ["Target", "ERA5 (interp)", "DRN", "Diffusion ensemble mean (n=4)", "Error (Ens−Target)"]
+    fig_w = 5 * PANEL_IN + 4 * COL_GAP_IN
+    fig_h = n_vars * (PANEL_IN + GAP_IN + CBAR_IN)
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    # Full-bleed margins: matplotlib's default figure margins (left=0.125,
+    # right=0.9, top=0.88, bottom=0.11) otherwise eat asymmetric width vs.
+    # height, breaking the PANEL_IN x PANEL_IN square-cell math below and
+    # making aspect="equal" silently shrink/reposition axes boxes (which is
+    # what was pushing "Lon" down into the colorbar). Overflowing text (Lon,
+    # titles, ylabels) is still captured fine since savefig uses
+    # bbox_inches="tight", which expands the canvas rather than clipping.
+    outer = fig.add_gridspec(n_vars, 1, hspace=0.55 / PANEL_IN,
+                              left=0.005, right=0.995, top=0.995, bottom=0.005)
+    axes = np.empty((n_vars, 5), dtype=object)
+    value_cax = np.empty(n_vars, dtype=object)   # bar under cols 0-3
+    error_cax = np.empty(n_vars, dtype=object)   # bar under col 4
+    for vi in range(n_vars):
+        inner = GridSpecFromSubplotSpec(
+            2, 5, subplot_spec=outer[vi],
+            height_ratios=[PANEL_IN, CBAR_IN], hspace=GAP_IN / ((PANEL_IN + CBAR_IN) / 2),
+            wspace=COL_GAP_IN / PANEL_IN)
+        for ci in range(5):
+            axes[vi, ci] = fig.add_subplot(inner[0, ci])
+        # Two bars, same box size for all 5 panels, small visible gap between
+        # them. A single shared linear scale was tried and is scientifically
+        # broken on real data: error is a tiny (~+-1-2 unit) difference field,
+        # so on the same scale as the absolute-value panels it collapses to a
+        # single flat color (verified: solid blank block on real patches).
+        # Error needs its own diverging range to show any structure at all.
+        cbar_row = GridSpecFromSubplotSpec(1, 5, subplot_spec=inner[1, :],
+                                            wspace=COL_GAP_IN / PANEL_IN * 3)
+        value_cax[vi] = fig.add_subplot(cbar_row[0, 0:4])
+        error_cax[vi] = fig.add_subplot(cbar_row[0, 4])
+
+    col_titles = ["Ground Truth", "ERA5 (interp)", "DRN", "Diffusion", "(Ens−GT)"]
 
     ens_mean = ensemble.mean(axis=0)   # (C, H, W)
 
@@ -76,43 +116,58 @@ def plot_sample(era5, target, drn_pred, ensemble, var_names, stats, sample_idx, 
         cmap = CMAPS.get(v, "viridis")
 
         panels = [tgt_phys, era5_phys, drn_phys, diff_phys, error_phys]
-        err_abs = np.nanpercentile(np.abs(error_phys), 95)
 
         H, W = tgt_phys.shape
         extent = [0, W, 0, H]
         if lat is not None and lon is not None:
             extent = [lon[0], lon[-1], lat[0], lat[-1]]
 
+        vmin = np.nanpercentile(tgt_phys, 2)
+        vmax = np.nanpercentile(tgt_phys, 98)
+        err_abs = np.nanpercentile(np.abs(error_phys), 95)
+        value_im = None
+        error_im = None
         for ci, (ax, data) in enumerate(zip(axes[vi], panels)):
-            if ci == 4:  # error: diverging, 95th pct clip
-                vmax = max(err_abs, 1e-6)
+            if ci == 4:  # error: own diverging scale, centered on 0
+                evmax = max(err_abs, 1e-6)
                 im = ax.imshow(data, origin="lower", cmap="RdBu_r",
-                               vmin=-vmax, vmax=vmax, extent=extent, aspect="auto")
+                               vmin=-evmax, vmax=evmax, extent=extent, aspect="equal")
+                error_im = im
             else:
-                vmin = np.nanpercentile(tgt_phys, 2)
-                vmax = np.nanpercentile(tgt_phys, 98)
                 im = ax.imshow(data, origin="lower", cmap=cmap,
-                               vmin=vmin, vmax=vmax, extent=extent, aspect="auto")
-            if lat is not None and lon is not None:
-                ax.set_xlabel("Lon", fontsize=11)
+                               vmin=vmin, vmax=vmax, extent=extent, aspect="equal")
                 if ci == 0:
-                    ax.set_ylabel(f"{VARIABLE_NAMES.get(v, v)}\nLat", fontsize=13)
+                    value_im = im
+            if lat is not None and lon is not None:
+                ax.set_xlabel("Lon", fontsize=14)
+                # Drop the first/last tick (0 and 250) so they don't overlap
+                # the neighboring panel's edge tick in the tight gap between
+                # panels, but keep matplotlib's normal 50-step grid instead
+                # of letting a pruning locator re-pick a different spacing.
+                default_ticks = ax.get_xticks()
+                x0, x1 = ax.get_xlim()
+                inner_ticks = [t for t in default_ticks if x0 < t < x1]
+                ax.set_xticks(inner_ticks)
+                if ci == 0:
+                    ax.set_ylabel(f"{VARIABLE_NAMES.get(v, v)}\nLat", fontsize=17)
                 else:
                     ax.set_yticks([])
-                ax.tick_params(labelsize=10)
+                ax.tick_params(labelsize=13)
             else:
                 ax.axis("off")
                 if ci == 0:
-                    ax.set_ylabel(VARIABLE_NAMES.get(v, v), fontsize=14, fontweight="bold")
-            cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.02, label=unit)
-            cbar.ax.tick_params(labelsize=10)
-            cbar.set_label(unit, fontsize=11)
+                    ax.set_ylabel(VARIABLE_NAMES.get(v, v), fontsize=18, fontweight="bold")
             if vi == 0:
-                ax.set_title(col_titles[ci], fontsize=15, fontweight="bold")
+                ax.set_title(col_titles[ci], fontsize=19, fontweight="bold")
 
-    fig.suptitle(f"Sample {sample_idx+1}: ERA5→CONUS404 Downscaling (4-member ensemble, 16 steps)",
-                 fontsize=17, y=1.02)
-    fig.tight_layout()
+        cbar = fig.colorbar(value_im, cax=value_cax[vi], orientation="horizontal")
+        cbar.ax.tick_params(labelsize=13)
+        cbar.set_label(unit, fontsize=14)
+
+        err_cbar = fig.colorbar(error_im, cax=error_cax[vi], orientation="horizontal")
+        err_cbar.ax.tick_params(labelsize=13)
+        err_cbar.set_label(unit, fontsize=14)
+
     path = out_dir / f"sample_{sample_idx+1:02d}.png"
     fig.savefig(path, dpi=130, bbox_inches="tight")
     plt.close(fig)
