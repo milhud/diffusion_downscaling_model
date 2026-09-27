@@ -1,5 +1,14 @@
 # Publishable Points: Latent CorrDiff for Atmospheric Downscaling
 
+> **Status note:** This document was written before the completed
+> event-based benchmark. Its "Results" and "Planned Additions" sections
+> below are a single-variable, in-progress snapshot. For the actual
+> completed, quantitative results — including a confirmed precipitation
+> failure mode and a baseline comparison showing the latent model is
+> *not* measurably faster than small pixel-space baselines — see
+> [`event_benchmark_output/README.md`](../event_benchmark_output/README.md),
+> which supersedes this document and `RESULTS.md`/`EXPERIMENTS.md`.
+
 ## Core Innovation
 
 This work introduces **Latent CorrDiff** — the first model to combine CorrDiff's residual corrective decomposition (Mardani et al. 2025) with latent diffusion (Rombach et al. 2022) for atmospheric downscaling. The model performs ERA5 (0.25deg, ~27km) to CONUS404 (4km) downscaling over the contiguous United States using a fully learned three-stage pipeline with no physics-based model in the loop.
@@ -14,7 +23,7 @@ The key idea: rather than running an expensive diffusion process in full pixel s
 
 CorrDiff introduced the two-step corrective decomposition x = E[x|y] + r, where a UNet regression model predicts the conditional mean and a diffusion model generates the stochastic residual. Our model preserves this decomposition but makes three key changes:
 
-1. **Latent-space diffusion instead of pixel-space diffusion.** CorrDiff runs its EDM diffusion model on 448x448 pixel-space residuals. We insert a VAE between the regression and diffusion stages, compressing residuals from 256x256 to 64x64 latent codes. The diffusion model then operates entirely in this latent space. This reduces the spatial dimensionality by 16x per denoising step (64x64 = 4,096 vs 448x448 = 200,704 spatial positions). The variance reduction property of the residual decomposition (var(r) <= var(x), proven by Mardani et al.) is preserved — the VAE simply provides a more compact representation of r.
+1. **Latent-space diffusion instead of pixel-space diffusion.** CorrDiff runs its EDM diffusion model on 448x448 pixel-space residuals. We insert a VAE between the regression and diffusion stages, compressing residuals from 256x256 to 64x64 latent codes. The diffusion model then operates entirely in this latent space. This reduces the spatial dimensionality by 16x per denoising step (64x64 = 4,096 vs 448x448 = 200,704 spatial positions). The variance reduction property of the residual decomposition (var(r) <= var(x), proven by Mardani et al.) is preserved — the VAE simply provides a more compact representation of r. **Caveat (see event_benchmark_output/README.md §10):** this theoretical FLOP reduction did not translate into a measured wall-clock speedup against small self-trained pixel-space baselines on the same data (1.10s vs 0.67s per tile/member) — the VAE encode/decode overhead and the larger diffusion UNet (142M params) offset the smaller spatial grid.
 
 2. **Domain scale.** CorrDiff covers Taiwan (~36x448 input to 448x448 output, 2km resolution). We cover the contiguous United States (1015x1367 full grid, 4km resolution), a domain roughly 50x larger in area. Our patch-based training (256x256 patches from 87 valid land origins) enables scaling to this domain while maintaining training efficiency.
 
@@ -68,7 +77,7 @@ Sha et al. develop a Swin-Transformer-based Limited Area Model for autoregressiv
 
 2. **Deterministic vs. probabilistic.** The LAM is deterministic — ensemble diversity comes only from different boundary forcings. Our diffusion model is inherently probabilistic — each forward pass through the diffusion sampler produces a different realization, enabling ensemble generation from a single input.
 
-3. **Architecture.** They use Swin-Transformer (windowed self-attention) with 36 stacks and 1280-dimensional tensors. We use a standard UNet backbone (~142M parameters for diffusion, ~7M for DRN, ~12M for VAE).
+3. **Architecture.** They use Swin-Transformer (windowed self-attention) with 36 stacks and 1280-dimensional tensors. We use a standard UNet backbone (142.4M parameters for diffusion, 49.6M for DRN, 39.7M for VAE — measured from current `config.py`).
 
 4. **Post-processing.** Sha et al. use a separate U-Net to derive diagnostic variables (precipitation, soil moisture, OLR) from prognostic LAM output. We include all target variables in the same pipeline.
 
@@ -181,7 +190,7 @@ VAE and Diffusion results pending completion of DRN training.
 
 ### Strong Points (Publication-Ready)
 1. **Novel combination** — No prior work combines CorrDiff residual decomposition with latent diffusion for atmospheric downscaling. This is a clear methodological contribution.
-2. **Compute efficiency argument** — 16x spatial reduction in diffusion operations is a concrete, quantifiable advantage over pixel-space approaches.
+2. **Compute efficiency argument** — 16x spatial reduction in diffusion operations is a concrete, quantifiable *theoretical* advantage over pixel-space approaches, though it did not hold up as a measured wall-clock speedup against small baselines (see status note above) — frame this claim carefully in the paper.
 3. **Working three-stage pipeline** — All stages train successfully and the diffusion model demonstrably improves upon the deterministic baseline.
 4. **Large domain** — CONUS-scale 4km downscaling is more ambitious than Taiwan-scale (CorrDiff) or Western-US 9km (R2-D2).
 5. **40-year training dataset** — CONUS404 provides a rich, validated training source.
@@ -267,18 +276,29 @@ sbatch scripts/run_evaluation.sh
 ```
 
 ### Checkpoints
-HuggingFace: [mudhil/diffusion-downscaling-model](https://huggingface.co/mudhil/diffusion-downscaling-model)
 
-**Single-variable (T2 only) — completed, archived:**
-- `checkpoints_single_var/drn_best.pt` (568 MB)
-- `checkpoints_single_var/vae_best.pt` (454 MB)
-- `checkpoints_single_var/diffusion_best.pt` (2.2 GB)
-- `checkpoints_single_var/diffusion_latest.pt` (2.2 GB)
+Checkpoints are mirrored across three HuggingFace repos (verified by sha256
+against the local `checkpoints/` directory as of 2026-09-27):
 
-**Multi-variable (6 vars) — in progress:**
-- `checkpoints/drn_best.pt` — updated as training proceeds
-- `checkpoints/vae_best.pt` — after DRN completes
-- `checkpoints/diffusion_best.pt` — after VAE completes
+- **[mudhil/era5-conus404-diffusion-downscaling](https://huggingface.co/mudhil/era5-conus404-diffusion-downscaling)** (private) —
+  **the current, most up-to-date multi-variable checkpoints.** `diffusion_best.pt`,
+  `diffusion_latest.pt`, `drn_best.pt`, `vae_best.pt` are byte-identical to
+  what's on disk in `checkpoints/` right now.
+- **[mudhil/diffusion-downscaling-checkpoints](https://huggingface.co/mudhil/diffusion-downscaling-checkpoints)** (public) —
+  `drn_best.pt`, `drn_latest.pt`, `vae_best.pt`, `vae_latest.pt`, and the
+  `_prespectral`/`_oldvae` variants are byte-identical to local. Its
+  `diffusion_best.pt`/`diffusion_latest.pt` are an **older** diffusion
+  checkpoint (different hash from current local/private-repo weights).
+- **[mudhil/diffusion-downscaling-model](https://huggingface.co/mudhil/diffusion-downscaling-model)** (public, 2.6TB) —
+  bundles checkpoints *and* the full 41-year raw CONUS404 dataset. Its
+  `checkpoints_final/drn_best.pt` matches local exactly; `checkpoints_final/vae_best.pt`
+  and `checkpoints_final/diffusion_best.pt` are actually the `_prespectral`/`_oldvae`
+  variants (mislabeled — no `_oldvae`/`_prespectral` suffix in the filename).
+  The top-level `checkpoints/` and `checkpoints_single_var/` directories here
+  are from the single-variable (T2-only) era and do not match any current
+  local checkpoint.
+
+Each repo now has an up-to-date README describing exactly what's in it — see the repo pages above.
 
 ---
 

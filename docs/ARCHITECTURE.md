@@ -1,5 +1,13 @@
 # Model Architecture
 
+> **Status note:** This document was written during single-variable (T2-only)
+> development and has been updated to match the current 6-variable
+> `config.py`. For actual measured results (including where this
+> architecture underperforms its design goals — e.g. latent diffusion is
+> *not* faster than small pixel-space baselines in practice), see
+> [`event_benchmark_output/README.md`](../event_benchmark_output/README.md),
+> which supersedes the results in this `docs/` directory.
+
 ## Overview: Three-Stage Latent CorrDiff Pipeline
 
 ```
@@ -23,7 +31,7 @@ z_sample ~ p(z | ERA5, mu)                 # denoised latent sample
 r_sample = decode(z_sample)                 # reconstructed residual
     |
     v  mu + r_sample
-CONUS404 prediction (B, 7, 256, 256)        # final output
+CONUS404 prediction (B, 6, 256, 256)        # final output
 ```
 
 ## Innovation vs Prior Work
@@ -33,10 +41,10 @@ CONUS404 prediction (B, 7, 256, 256)        # final output
 | Regression step | UNet (pixel space) | WRF (physics model) | UNet DRN |
 | Diffusion space | Pixel (448x448) | Pixel (340x270) | **Latent (64x64)** |
 | Compression | None | None | **VAE 4x spatial** |
-| Variables | 4 (T, u, v, radar) | 6 | 7 (incl. Q2 synthesis) |
+| Variables | 4 (T, u, v, radar) | 6 | 6 (t2m, d2m, u10, v10, sp, tp — Q2 synthesis was planned but is not in the active `config.py`) |
 | Domain | Taiwan (2km) | Western US (9km) | CONUS (4km) |
 
-Key advantage: Diffusion operates on 64x64 latent space instead of 256x256 pixel space, reducing compute by ~16x per denoising step while preserving residual variance reduction.
+Key advantage (theoretical): Diffusion operates on 64x64 latent space instead of 256x256 pixel space, a ~16x reduction in spatial positions per denoising step, while preserving residual variance reduction. **This does not translate into a measured wall-clock speedup** — the event benchmark (see status note above) found the latent model is not faster than small pixel-space CorrDiff-style baselines trained on the same data (1.10s vs 0.67s per tile/member); the theoretical FLOP reduction is offset by the VAE encode/decode overhead and larger diffusion UNet.
 
 ## Stage 1: DRN (Deterministic Regression Network)
 
@@ -45,29 +53,29 @@ Key advantage: Diffusion operates on 64x64 latent space instead of 256x256 pixel
 **Architecture:**
 ```
 Input: (B, IN_CH, 256, 256)     # ERA5 vars + 6 static fields
-  Conv2d(IN_CH -> 96)
+  Conv2d(IN_CH -> 64)
 
   Encoder:
-    Level 0: 2x ResBlock(96, 96) -> Downsample
-    Level 1: 2x ResBlock(96, 192) -> Downsample
-    Level 2: 2x ResBlock(192, 384) + Attention -> Downsample
-    Level 3: 2x ResBlock(384, 768)
+    Level 0: 2x ResBlock(64, 64) -> Downsample
+    Level 1: 2x ResBlock(64, 128) -> Downsample
+    Level 2: 2x ResBlock(128, 256) + Attention -> Downsample
+    Level 3: 2x ResBlock(256, 512)
 
   Bottleneck:
-    ResBlock(768, 768) + Attention + ResBlock(768, 768)
+    ResBlock(512, 512) + Attention + ResBlock(512, 512)
 
   Decoder (with skip connections):
-    Level 3: 2x ResBlock(768+768, 768) -> Upsample
-    Level 2: 2x ResBlock(768+384, 384) + Attention -> Upsample
-    Level 1: 2x ResBlock(384+192, 192) -> Upsample
-    Level 0: 2x ResBlock(192+96, 96)
+    Level 3: 2x ResBlock(512+512, 512) -> Upsample
+    Level 2: 2x ResBlock(512+256, 256) + Attention -> Upsample
+    Level 1: 2x ResBlock(256+128, 128) -> Upsample
+    Level 0: 2x ResBlock(128+64, 64)
 
-  GroupNorm + SiLU + Conv2d(96 -> OUT_CH)
+  GroupNorm + SiLU + Conv2d(64 -> OUT_CH)
 
-Output: (B, OUT_CH, 256, 256)   # 7 CONUS404 variables
+Output: (B, OUT_CH, 256, 256)   # 6 CONUS404 variables
 ```
 
-**Parameters:** ~7M (with base_ch=96)
+**Parameters:** 49.6M (measured from current `config.py`: `drn_base_ch=64`, `ch_mults=(1,2,4,8)`)
 **Loss:** PerVariableMSE with learnable inverse-variance weights + L1 on precipitation
 
 ## Stage 2a: VAE (Variational Autoencoder)
@@ -88,7 +96,7 @@ Input: (B, OUT_CH, 256, 256)    # residual = CONUS - DRN pred
 
 **Decoder:** Mirror of encoder with Upsample replacing Downsample.
 
-**Parameters:** ~12M
+**Parameters:** 39.7M (measured from current `config.py`: `vae_base_ch=128`)
 **Loss:** MSE reconstruction + KL divergence (beta annealed 0 -> 1e-3)
 **Compression ratio:** 256x256 -> 64x64 (4x spatial, LDM-4 style)
 
@@ -124,7 +132,7 @@ Decoder (skip connections):
 Output conv: 128 -> LATENT_CH (8)
 ```
 
-**Parameters:** ~142M
+**Parameters:** 142.4M (measured from current `config.py`)
 **Time conditioning:** Sinusoidal embedding (dim=512) -> MLP -> FiLM modulation in ResBlocks
 
 ## EDM Schedule (Karras et al. 2022)
@@ -141,7 +149,7 @@ Output conv: 128 -> LATENT_CH (8)
 - **Method:** Heun's 2nd-order (deterministic ODE solver)
 - **Steps:** 32 denoising steps
 - **Classifier-free guidance:** g=0.2 (10% unconditional dropout during training)
-- **EMA:** decay=0.9999, applied during inference
+- **EMA:** decay=0.999 (current `config.py`; lowered from an earlier 0.9999 to track the model faster, half-life ~700 steps), applied during inference
 
 ## Key Components (src/models/components.py)
 

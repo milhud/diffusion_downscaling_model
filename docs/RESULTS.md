@@ -1,5 +1,10 @@
 # Results and Analysis
 
+> **Status note:** This document only covers the single-variable (T2-only)
+> baseline run. It is superseded by
+> [`event_benchmark_output/README.md`](../event_benchmark_output/README.md),
+> which has completed multi-variable, event-based benchmark results.
+
 ## Current Results (Single-Variable: Temperature Only)
 
 ### Stage 1: DRN

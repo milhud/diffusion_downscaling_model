@@ -1,5 +1,12 @@
 # Experiments and Analyses
 
+> **Status note:** The analyses below are the planned/available evaluation
+> suite. For completed, results, see
+> [`event_benchmark_output/README.md`](../event_benchmark_output/README.md)
+> (event-based benchmark) — it also documents the baseline re-implementation
+> analyses (`train_baselines.py`, `event_predict_baselines.py`, etc.) not
+> listed in this file.
+
 All analyses are run through a single SLURM entry point:
 
 ```bash
