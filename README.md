@@ -7,3 +7,14 @@ The current, up-to-date checkpoint set (`drn_best.pt`, `vae_best.pt`, `diffusion
 Run `python -m src.preprocessing.cache_builder --all` (or the parallel SLURM version, `sbatch scripts/run_preprocess.sh`) to produce `cached_data/era5_{year}.npy`, `cached_data/conus_{year}.npy`, `cached_data/static_fields.npy`, and `cached_data/nan_days.json`. You can sanity-check the result with `python scripts/verify_preprocessing.py --plot` and `python -m src.preprocessing.verify_cache`. Normalization statistics are computed once from the training years and cached to `norm_stats.npz`; both training and inference load this file rather than recomputing it.
 
 Training is a three-stage sequential process: DRN first, then the VAE (needs `checkpoints/drn_best.pt`), then the diffusion model (needs both DRN and VAE checkpoints). This is driven by `train.py` and configured entirely through `config.py` (variable list, patch size, per-stage epochs/learning rates, EMA decay, loss weights, and the 1980–2014/2015–2017/2018–2020 train/val/test year split). The simplest way to run it is `sbatch run_training.sh`, which launches `torchrun --standalone --nproc_per_node=4 train.py --stage all --data_dir data --checkpoint_dir checkpoints --cache_dir cached_data --plot_dir train_plots` on 4 A100 GPUs via SLURM DDP; pass `--stage drn`, `--stage vae`, or `--stage diffusion` to `sbatch run_training.sh` to run just one stage. Full training is estimated at roughly 400k steps (~40 hours), which exceeds the `alla100` QOS's 12-hour wall-clock cap, so in practice you resume repeatedly with `python train.py --stage <stage> --resume`, which restores model weights, optimizer state, LR scheduler, and (for diffusion) EMA weights from the `*_latest.pt` checkpoint and continues from the next epoch (email NCCS to upgrade wallclock time). Rather than resubmitting manually, `./scripts/resume drn`, `./scripts/resume vae`, or `./scripts/resume diffusion` starts a daemon that polls the SLURM job every two minutes and automatically resubmits with `--resume` up to 20 times; watch it with `tail -f train_loop.log` and stop it with `kill $(cat .train_daemon.pid)`. Checkpoints are written at the end of every epoch, so at most one epoch of progress is lost if a job is killed by the walltime limit. After the diffusion stage finishes, `train.py` runs a small held-out evaluation comparing DRN-only RMSE against the full diffusion-ensemble RMSE and, on the main process, auto-commits and pushes `train_plots/` to git.
+
+## Quickstart
+
+```bash
+git clone https://github.com/milhud/diffusion_downscaling_model && cd diffusion_downscaling_model
+pip install -r requirements.txt
+hf download mudhil/era5-conus404-diffusion-downscaling --local-dir checkpoints/
+python -m src.preprocessing.cache_builder --all
+python -m src.inference.sample_nc --checkpoint_dir checkpoints --cache_dir cached_data --device cuda
+sbatch run_training.sh
+```

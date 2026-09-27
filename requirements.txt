@@ -1,0 +1,9 @@
+torch==2.10.0
+numpy==1.26.4
+scipy==1.14.1
+xarray==2024.7.0
+xesmf==0.8.7
+netCDF4==1.7.1
+matplotlib==3.8.2
+scikit-image
+huggingface_hub==1.11.0
