@@ -1,3 +1,0 @@
-/home/hpmille1/.local/lib/python3.12/site-packages/torch/cuda/__init__.py:65: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
-  import pynvml  # type: ignore[import]
-slurmstepd: error: *** JOB 58114996 ON warpa003 CANCELLED AT 2026-08-28T12:10:07 ***
