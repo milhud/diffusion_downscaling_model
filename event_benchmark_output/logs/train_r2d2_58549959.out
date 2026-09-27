@@ -1,0 +1,342 @@
+[Data] Using cached data from /discover/nobackup/sduan/.data
+[Data] Skipped 63 fully-NaN days (from nan_days.json)
+[r2d2] params 41.5 M
+[r2d2] residual std per channel (normalised units): [0.15888439118862152, 0.19515793025493622, 0.4103166162967682, 0.32885634899139404, 0.18373113870620728, 0.6993629336357117]
+[r2d2] step 100 loss 1.0032 lr 2.00e-05 2.95 it/s  0.01 h
+[r2d2] step 200 loss 0.8710 lr 4.00e-05 2.34 it/s  0.02 h
+[r2d2] step 300 loss 0.6510 lr 6.00e-05 2.12 it/s  0.04 h
+[r2d2] step 400 loss 0.5316 lr 8.00e-05 2.06 it/s  0.05 h
+[r2d2] step 500 loss 0.4639 lr 1.00e-04 2.00 it/s  0.07 h
+[r2d2] step 600 loss 0.4213 lr 1.20e-04 1.98 it/s  0.08 h
+[r2d2] step 700 loss 0.4058 lr 1.40e-04 1.94 it/s  0.10 h
+[r2d2] step 800 loss 0.3879 lr 1.60e-04 1.93 it/s  0.12 h
+[r2d2] step 900 loss 0.3778 lr 1.80e-04 1.91 it/s  0.13 h
+[r2d2] step 1000 loss 0.3668 lr 2.00e-04 1.90 it/s  0.15 h
+[r2d2] step 1100 loss 0.3552 lr 2.00e-04 1.86 it/s  0.16 h
+[r2d2] step 1200 loss 0.3238 lr 2.00e-04 1.85 it/s  0.18 h
+[r2d2] step 1300 loss 0.3209 lr 1.99e-04 1.76 it/s  0.20 h
+[r2d2] step 1400 loss 0.3063 lr 1.99e-04 1.77 it/s  0.22 h
+[r2d2] step 1500 loss 0.2996 lr 1.99e-04 1.76 it/s  0.24 h
+[r2d2] step 1600 loss 0.3080 lr 1.99e-04 1.77 it/s  0.25 h
+[r2d2] step 1700 loss 0.2924 lr 1.99e-04 1.75 it/s  0.27 h
+[r2d2] step 1800 loss 0.2972 lr 1.99e-04 1.74 it/s  0.29 h
+[r2d2] step 1900 loss 0.2785 lr 1.99e-04 1.71 it/s  0.31 h
+[r2d2] step 2000 loss 0.2777 lr 1.99e-04 1.71 it/s  0.32 h
+[r2d2] === step 2000 val(EMA) 0.3304 (best inf)
+[r2d2] step 2100 loss 0.2710 lr 1.99e-04 1.70 it/s  0.34 h
+[r2d2] step 2200 loss 0.2673 lr 1.98e-04 1.69 it/s  0.36 h
+[r2d2] step 2300 loss 0.2820 lr 1.98e-04 1.68 it/s  0.38 h
+[r2d2] step 2400 loss 0.2681 lr 1.98e-04 1.67 it/s  0.40 h
+[r2d2] step 2500 loss 0.2474 lr 1.98e-04 1.68 it/s  0.41 h
+[r2d2] step 2600 loss 0.2538 lr 1.98e-04 1.68 it/s  0.43 h
+[r2d2] step 2700 loss 0.2576 lr 1.98e-04 1.69 it/s  0.45 h
+[r2d2] step 2800 loss 0.2564 lr 1.97e-04 1.67 it/s  0.47 h
+[r2d2] step 2900 loss 0.2595 lr 1.97e-04 1.67 it/s  0.48 h
+[r2d2] step 3000 loss 0.2472 lr 1.97e-04 1.66 it/s  0.50 h
+[r2d2] step 3100 loss 0.2505 lr 1.97e-04 1.65 it/s  0.52 h
+[r2d2] step 3200 loss 0.2454 lr 1.97e-04 1.64 it/s  0.54 h
+[r2d2] step 3300 loss 0.2375 lr 1.96e-04 1.64 it/s  0.56 h
+[r2d2] step 3400 loss 0.2517 lr 1.96e-04 1.63 it/s  0.58 h
+[r2d2] step 3500 loss 0.2426 lr 1.96e-04 1.63 it/s  0.60 h
+[r2d2] step 3600 loss 0.2480 lr 1.96e-04 1.63 it/s  0.62 h
+[r2d2] step 3700 loss 0.2370 lr 1.96e-04 1.61 it/s  0.64 h
+[r2d2] step 3800 loss 0.2270 lr 1.95e-04 1.61 it/s  0.66 h
+[r2d2] step 3900 loss 0.2305 lr 1.95e-04 1.61 it/s  0.67 h
+[r2d2] step 4000 loss 0.2347 lr 1.95e-04 1.61 it/s  0.69 h
+[r2d2] === step 4000 val(EMA) 0.2249 (best 0.3304)
+[r2d2] step 4100 loss 0.2290 lr 1.95e-04 1.60 it/s  0.71 h
+[r2d2] step 4200 loss 0.2182 lr 1.94e-04 1.59 it/s  0.73 h
+[r2d2] step 4300 loss 0.2264 lr 1.94e-04 1.59 it/s  0.75 h
+[r2d2] step 4400 loss 0.2307 lr 1.94e-04 1.59 it/s  0.77 h
+[r2d2] step 4500 loss 0.2356 lr 1.94e-04 1.60 it/s  0.78 h
+[r2d2] step 4600 loss 0.2166 lr 1.93e-04 1.60 it/s  0.80 h
+[r2d2] step 4700 loss 0.2309 lr 1.93e-04 1.60 it/s  0.82 h
+[r2d2] step 4800 loss 0.2052 lr 1.93e-04 1.60 it/s  0.83 h
+[r2d2] step 4900 loss 0.2289 lr 1.92e-04 1.60 it/s  0.85 h
+[r2d2] step 5000 loss 0.2198 lr 1.92e-04 1.60 it/s  0.87 h
+[r2d2] step 5100 loss 0.2201 lr 1.92e-04 1.60 it/s  0.88 h
+[r2d2] step 5200 loss 0.2170 lr 1.91e-04 1.61 it/s  0.90 h
+[r2d2] step 5300 loss 0.2201 lr 1.91e-04 1.61 it/s  0.92 h
+[r2d2] step 5400 loss 0.2135 lr 1.91e-04 1.61 it/s  0.93 h
+[r2d2] step 5500 loss 0.2096 lr 1.90e-04 1.61 it/s  0.95 h
+[r2d2] step 5600 loss 0.2153 lr 1.90e-04 1.61 it/s  0.96 h
+[r2d2] step 5700 loss 0.2154 lr 1.90e-04 1.61 it/s  0.98 h
+[r2d2] step 5800 loss 0.2026 lr 1.89e-04 1.62 it/s  1.00 h
+[r2d2] step 5900 loss 0.2151 lr 1.89e-04 1.62 it/s  1.01 h
+[r2d2] step 6000 loss 0.2039 lr 1.89e-04 1.62 it/s  1.03 h
+[r2d2] === step 6000 val(EMA) 0.1967 (best 0.2249)
+[r2d2] step 6100 loss 0.2085 lr 1.88e-04 1.61 it/s  1.05 h
+[r2d2] step 6200 loss 0.2078 lr 1.88e-04 1.62 it/s  1.07 h
+[r2d2] step 6300 loss 0.2032 lr 1.87e-04 1.62 it/s  1.08 h
+[r2d2] step 6400 loss 0.2097 lr 1.87e-04 1.62 it/s  1.09 h
+[r2d2] step 6500 loss 0.2102 lr 1.87e-04 1.64 it/s  1.10 h
+[r2d2] step 6600 loss 0.2022 lr 1.86e-04 1.65 it/s  1.11 h
+[r2d2] step 6700 loss 0.2005 lr 1.86e-04 1.67 it/s  1.12 h
+[r2d2] step 6800 loss 0.2050 lr 1.85e-04 1.67 it/s  1.13 h
+[r2d2] step 6900 loss 0.1955 lr 1.85e-04 1.69 it/s  1.14 h
+[r2d2] step 7000 loss 0.2102 lr 1.85e-04 1.67 it/s  1.16 h
+[r2d2] step 7100 loss 0.2062 lr 1.84e-04 1.66 it/s  1.19 h
+[r2d2] step 7200 loss 0.1977 lr 1.84e-04 1.64 it/s  1.22 h
+[r2d2] step 7300 loss 0.2141 lr 1.83e-04 1.62 it/s  1.25 h
+[r2d2] step 7400 loss 0.2027 lr 1.83e-04 1.61 it/s  1.28 h
+[r2d2] step 7500 loss 0.2049 lr 1.82e-04 1.59 it/s  1.31 h
+[r2d2] step 7600 loss 0.2093 lr 1.82e-04 1.57 it/s  1.34 h
+[r2d2] step 7700 loss 0.2051 lr 1.81e-04 1.56 it/s  1.37 h
+[r2d2] step 7800 loss 0.1920 lr 1.81e-04 1.54 it/s  1.40 h
+[r2d2] step 7900 loss 0.2105 lr 1.80e-04 1.53 it/s  1.43 h
+[r2d2] step 8000 loss 0.1976 lr 1.80e-04 1.51 it/s  1.47 h
+[r2d2] === step 8000 val(EMA) 0.1835 (best 0.1967)
+[r2d2] step 8100 loss 0.1938 lr 1.79e-04 1.49 it/s  1.51 h
+[r2d2] step 8200 loss 0.1942 lr 1.79e-04 1.48 it/s  1.54 h
+[r2d2] step 8300 loss 0.1917 lr 1.79e-04 1.47 it/s  1.57 h
+[r2d2] step 8400 loss 0.1883 lr 1.78e-04 1.46 it/s  1.60 h
+[r2d2] step 8500 loss 0.1993 lr 1.77e-04 1.45 it/s  1.63 h
+[r2d2] step 8600 loss 0.1879 lr 1.77e-04 1.43 it/s  1.66 h
+[r2d2] step 8700 loss 0.1931 lr 1.76e-04 1.42 it/s  1.70 h
+[r2d2] step 8800 loss 0.1995 lr 1.76e-04 1.41 it/s  1.73 h
+[r2d2] step 8900 loss 0.1922 lr 1.75e-04 1.41 it/s  1.76 h
+[r2d2] step 9000 loss 0.1871 lr 1.75e-04 1.40 it/s  1.79 h
+[r2d2] step 9100 loss 0.1926 lr 1.74e-04 1.39 it/s  1.82 h
+[r2d2] step 9200 loss 0.1913 lr 1.74e-04 1.38 it/s  1.85 h
+[r2d2] step 9300 loss 0.1912 lr 1.73e-04 1.37 it/s  1.88 h
+[r2d2] step 9400 loss 0.1867 lr 1.73e-04 1.37 it/s  1.91 h
+[r2d2] step 9500 loss 0.1861 lr 1.72e-04 1.36 it/s  1.94 h
+[r2d2] step 9600 loss 0.2029 lr 1.72e-04 1.36 it/s  1.97 h
+[r2d2] step 9700 loss 0.1966 lr 1.71e-04 1.35 it/s  1.99 h
+[r2d2] step 9800 loss 0.1836 lr 1.70e-04 1.35 it/s  2.02 h
+[r2d2] step 9900 loss 0.1813 lr 1.70e-04 1.34 it/s  2.05 h
+[r2d2] step 10000 loss 0.1884 lr 1.69e-04 1.34 it/s  2.08 h
+[r2d2] === step 10000 val(EMA) 0.1745 (best 0.1835)
+[r2d2] step 10100 loss 0.1903 lr 1.69e-04 1.33 it/s  2.12 h
+[r2d2] step 10200 loss 0.1951 lr 1.68e-04 1.32 it/s  2.15 h
+[r2d2] step 10300 loss 0.1836 lr 1.68e-04 1.31 it/s  2.18 h
+[r2d2] step 10400 loss 0.1948 lr 1.67e-04 1.31 it/s  2.21 h
+[r2d2] step 10500 loss 0.1882 lr 1.66e-04 1.30 it/s  2.24 h
+[r2d2] step 10600 loss 0.1707 lr 1.66e-04 1.29 it/s  2.27 h
+[r2d2] step 10700 loss 0.1874 lr 1.65e-04 1.28 it/s  2.32 h
+[r2d2] step 10800 loss 0.1875 lr 1.65e-04 1.28 it/s  2.35 h
+[r2d2] step 10900 loss 0.1923 lr 1.64e-04 1.27 it/s  2.38 h
+[r2d2] step 11000 loss 0.1831 lr 1.63e-04 1.27 it/s  2.41 h
+[r2d2] step 11100 loss 0.1842 lr 1.63e-04 1.26 it/s  2.44 h
+[r2d2] step 11200 loss 0.1855 lr 1.62e-04 1.26 it/s  2.47 h
+[r2d2] step 11300 loss 0.1829 lr 1.61e-04 1.25 it/s  2.50 h
+[r2d2] step 11400 loss 0.1864 lr 1.61e-04 1.25 it/s  2.53 h
+[r2d2] step 11500 loss 0.1829 lr 1.60e-04 1.25 it/s  2.56 h
+[r2d2] step 11600 loss 0.1728 lr 1.60e-04 1.24 it/s  2.59 h
+[r2d2] step 11700 loss 0.1909 lr 1.59e-04 1.24 it/s  2.62 h
+[r2d2] step 11800 loss 0.1753 lr 1.58e-04 1.24 it/s  2.65 h
+[r2d2] step 11900 loss 0.1826 lr 1.58e-04 1.23 it/s  2.68 h
+[r2d2] step 12000 loss 0.1888 lr 1.57e-04 1.23 it/s  2.71 h
+[r2d2] === step 12000 val(EMA) 0.1679 (best 0.1745)
+[r2d2] step 12100 loss 0.1831 lr 1.56e-04 1.22 it/s  2.75 h
+[r2d2] step 12200 loss 0.1841 lr 1.56e-04 1.22 it/s  2.79 h
+[r2d2] step 12300 loss 0.1823 lr 1.55e-04 1.21 it/s  2.82 h
+[r2d2] step 12400 loss 0.1798 lr 1.54e-04 1.21 it/s  2.85 h
+[r2d2] step 12500 loss 0.1883 lr 1.54e-04 1.21 it/s  2.88 h
+[r2d2] step 12600 loss 0.1787 lr 1.53e-04 1.20 it/s  2.91 h
+[r2d2] step 12700 loss 0.1806 lr 1.52e-04 1.20 it/s  2.94 h
+[r2d2] step 12800 loss 0.1731 lr 1.52e-04 1.20 it/s  2.97 h
+[r2d2] step 12900 loss 0.1718 lr 1.51e-04 1.19 it/s  3.00 h
+[r2d2] step 13000 loss 0.1731 lr 1.50e-04 1.19 it/s  3.03 h
+[r2d2] step 13100 loss 0.1799 lr 1.50e-04 1.19 it/s  3.06 h
+[r2d2] step 13200 loss 0.1763 lr 1.49e-04 1.19 it/s  3.09 h
+[r2d2] step 13300 loss 0.1800 lr 1.48e-04 1.18 it/s  3.12 h
+[r2d2] step 13400 loss 0.1749 lr 1.47e-04 1.18 it/s  3.15 h
+[r2d2] step 13500 loss 0.1700 lr 1.47e-04 1.18 it/s  3.19 h
+[r2d2] step 13600 loss 0.1708 lr 1.46e-04 1.17 it/s  3.22 h
+[r2d2] step 13700 loss 0.1619 lr 1.45e-04 1.17 it/s  3.25 h
+[r2d2] step 13800 loss 0.1674 lr 1.45e-04 1.17 it/s  3.28 h
+[r2d2] step 13900 loss 0.1743 lr 1.44e-04 1.17 it/s  3.31 h
+[r2d2] step 14000 loss 0.1734 lr 1.43e-04 1.17 it/s  3.34 h
+[r2d2] === step 14000 val(EMA) 0.1628 (best 0.1679)
+[r2d2] step 14100 loss 0.1769 lr 1.42e-04 1.16 it/s  3.37 h
+[r2d2] step 14200 loss 0.1823 lr 1.42e-04 1.16 it/s  3.41 h
+[r2d2] step 14300 loss 0.1774 lr 1.41e-04 1.16 it/s  3.44 h
+[r2d2] step 14400 loss 0.1771 lr 1.40e-04 1.15 it/s  3.47 h
+[r2d2] step 14500 loss 0.1870 lr 1.40e-04 1.15 it/s  3.50 h
+[r2d2] step 14600 loss 0.1727 lr 1.39e-04 1.15 it/s  3.53 h
+[r2d2] step 14700 loss 0.1717 lr 1.38e-04 1.15 it/s  3.56 h
+[r2d2] step 14800 loss 0.1647 lr 1.37e-04 1.14 it/s  3.59 h
+[r2d2] step 14900 loss 0.1707 lr 1.37e-04 1.14 it/s  3.62 h
+[r2d2] step 15000 loss 0.1721 lr 1.36e-04 1.14 it/s  3.65 h
+[r2d2] step 15100 loss 0.1785 lr 1.35e-04 1.14 it/s  3.68 h
+[r2d2] step 15200 loss 0.1727 lr 1.34e-04 1.14 it/s  3.71 h
+[r2d2] step 15300 loss 0.1742 lr 1.34e-04 1.14 it/s  3.74 h
+[r2d2] step 15400 loss 0.1853 lr 1.33e-04 1.13 it/s  3.77 h
+[r2d2] step 15500 loss 0.1803 lr 1.32e-04 1.13 it/s  3.80 h
+[r2d2] step 15600 loss 0.1676 lr 1.31e-04 1.13 it/s  3.83 h
+[r2d2] step 15700 loss 0.1723 lr 1.31e-04 1.13 it/s  3.86 h
+[r2d2] step 15800 loss 0.1776 lr 1.30e-04 1.13 it/s  3.89 h
+[r2d2] step 15900 loss 0.1699 lr 1.29e-04 1.13 it/s  3.92 h
+[r2d2] step 16000 loss 0.1677 lr 1.28e-04 1.13 it/s  3.94 h
+[r2d2] === step 16000 val(EMA) 0.1589 (best 0.1628)
+[r2d2] step 16100 loss 0.1650 lr 1.28e-04 1.12 it/s  3.98 h
+[r2d2] step 16200 loss 0.1723 lr 1.27e-04 1.12 it/s  4.02 h
+[r2d2] step 16300 loss 0.1736 lr 1.26e-04 1.12 it/s  4.05 h
+[r2d2] step 16400 loss 0.1564 lr 1.25e-04 1.12 it/s  4.08 h
+[r2d2] step 16500 loss 0.1619 lr 1.25e-04 1.11 it/s  4.11 h
+[r2d2] step 16600 loss 0.1706 lr 1.24e-04 1.11 it/s  4.14 h
+[r2d2] step 16700 loss 0.1694 lr 1.23e-04 1.11 it/s  4.17 h
+[r2d2] step 16800 loss 0.1738 lr 1.22e-04 1.11 it/s  4.20 h
+[r2d2] step 16900 loss 0.1820 lr 1.21e-04 1.11 it/s  4.23 h
+[r2d2] step 17000 loss 0.1640 lr 1.21e-04 1.11 it/s  4.26 h
+[r2d2] step 17100 loss 0.1647 lr 1.20e-04 1.11 it/s  4.29 h
+[r2d2] step 17200 loss 0.1643 lr 1.19e-04 1.11 it/s  4.32 h
+[r2d2] step 17300 loss 0.1681 lr 1.18e-04 1.10 it/s  4.35 h
+[r2d2] step 17400 loss 0.1721 lr 1.18e-04 1.10 it/s  4.38 h
+[r2d2] step 17500 loss 0.1676 lr 1.17e-04 1.10 it/s  4.41 h
+[r2d2] step 17600 loss 0.1671 lr 1.16e-04 1.10 it/s  4.44 h
+[r2d2] step 17700 loss 0.1604 lr 1.15e-04 1.10 it/s  4.47 h
+[r2d2] step 17800 loss 0.1704 lr 1.14e-04 1.10 it/s  4.50 h
+[r2d2] step 17900 loss 0.1624 lr 1.14e-04 1.10 it/s  4.53 h
+[r2d2] step 18000 loss 0.1697 lr 1.13e-04 1.10 it/s  4.56 h
+[r2d2] === step 18000 val(EMA) 0.1556 (best 0.1589)
+[r2d2] step 18100 loss 0.1657 lr 1.12e-04 1.09 it/s  4.60 h
+[r2d2] step 18200 loss 0.1689 lr 1.11e-04 1.09 it/s  4.63 h
+[r2d2] step 18300 loss 0.1681 lr 1.11e-04 1.09 it/s  4.66 h
+[r2d2] step 18400 loss 0.1708 lr 1.10e-04 1.09 it/s  4.69 h
+[r2d2] step 18500 loss 0.1780 lr 1.09e-04 1.09 it/s  4.72 h
+[r2d2] step 18600 loss 0.1738 lr 1.08e-04 1.09 it/s  4.75 h
+[r2d2] step 18700 loss 0.1688 lr 1.07e-04 1.09 it/s  4.78 h
+[r2d2] step 18800 loss 0.1688 lr 1.07e-04 1.09 it/s  4.81 h
+[r2d2] step 18900 loss 0.1646 lr 1.06e-04 1.08 it/s  4.84 h
+[r2d2] step 19000 loss 0.1698 lr 1.05e-04 1.08 it/s  4.87 h
+[r2d2] step 19100 loss 0.1537 lr 1.04e-04 1.08 it/s  4.90 h
+[r2d2] step 19200 loss 0.1719 lr 1.03e-04 1.08 it/s  4.93 h
+[r2d2] step 19300 loss 0.1652 lr 1.03e-04 1.08 it/s  4.96 h
+[r2d2] step 19400 loss 0.1607 lr 1.02e-04 1.08 it/s  4.99 h
+[r2d2] step 19500 loss 0.1578 lr 1.01e-04 1.08 it/s  5.02 h
+[r2d2] step 19600 loss 0.1667 lr 1.00e-04 1.08 it/s  5.05 h
+[r2d2] step 19700 loss 0.1623 lr 9.95e-05 1.08 it/s  5.08 h
+[r2d2] step 19800 loss 0.1601 lr 9.87e-05 1.08 it/s  5.11 h
+[r2d2] step 19900 loss 0.1639 lr 9.79e-05 1.08 it/s  5.14 h
+[r2d2] step 20000 loss 0.1692 lr 9.72e-05 1.07 it/s  5.17 h
+[r2d2] === step 20000 val(EMA) 0.1530 (best 0.1556)
+[r2d2] step 20100 loss 0.1687 lr 9.64e-05 1.07 it/s  5.21 h
+[r2d2] step 20200 loss 0.1604 lr 9.56e-05 1.07 it/s  5.24 h
+[r2d2] step 20300 loss 0.1647 lr 9.48e-05 1.07 it/s  5.27 h
+[r2d2] step 20400 loss 0.1721 lr 9.40e-05 1.07 it/s  5.30 h
+[r2d2] step 20500 loss 0.1744 lr 9.33e-05 1.07 it/s  5.33 h
+[r2d2] step 20600 loss 0.1687 lr 9.25e-05 1.07 it/s  5.36 h
+[r2d2] step 20700 loss 0.1634 lr 9.17e-05 1.07 it/s  5.39 h
+[r2d2] step 20800 loss 0.1523 lr 9.09e-05 1.07 it/s  5.42 h
+[r2d2] step 20900 loss 0.1583 lr 9.01e-05 1.06 it/s  5.45 h
+[r2d2] step 21000 loss 0.1584 lr 8.94e-05 1.06 it/s  5.48 h
+[r2d2] step 21100 loss 0.1651 lr 8.86e-05 1.06 it/s  5.51 h
+[r2d2] step 21200 loss 0.1593 lr 8.78e-05 1.06 it/s  5.54 h
+[r2d2] step 21300 loss 0.1612 lr 8.71e-05 1.06 it/s  5.57 h
+[r2d2] step 21400 loss 0.1606 lr 8.63e-05 1.06 it/s  5.60 h
+[r2d2] step 21500 loss 0.1601 lr 8.55e-05 1.06 it/s  5.63 h
+[r2d2] step 21600 loss 0.1629 lr 8.47e-05 1.06 it/s  5.66 h
+[r2d2] step 21700 loss 0.1615 lr 8.40e-05 1.06 it/s  5.69 h
+[r2d2] step 21800 loss 0.1578 lr 8.32e-05 1.06 it/s  5.72 h
+[r2d2] step 21900 loss 0.1564 lr 8.24e-05 1.06 it/s  5.75 h
+[r2d2] step 22000 loss 0.1622 lr 8.17e-05 1.06 it/s  5.78 h
+[r2d2] === step 22000 val(EMA) 0.1507 (best 0.1530)
+[r2d2] step 22100 loss 0.1607 lr 8.09e-05 1.06 it/s  5.81 h
+[r2d2] step 22200 loss 0.1594 lr 8.02e-05 1.06 it/s  5.84 h
+[r2d2] step 22300 loss 0.1662 lr 7.94e-05 1.05 it/s  5.87 h
+[r2d2] step 22400 loss 0.1635 lr 7.87e-05 1.05 it/s  5.91 h
+[r2d2] step 22500 loss 0.1573 lr 7.79e-05 1.05 it/s  5.93 h
+[r2d2] step 22600 loss 0.1642 lr 7.71e-05 1.05 it/s  5.96 h
+[r2d2] step 22700 loss 0.1703 lr 7.64e-05 1.05 it/s  5.99 h
+[r2d2] step 22800 loss 0.1555 lr 7.57e-05 1.05 it/s  6.02 h
+[r2d2] step 22900 loss 0.1580 lr 7.49e-05 1.05 it/s  6.06 h
+[r2d2] step 23000 loss 0.1584 lr 7.42e-05 1.05 it/s  6.09 h
+[r2d2] step 23100 loss 0.1589 lr 7.34e-05 1.05 it/s  6.13 h
+[r2d2] step 23200 loss 0.1609 lr 7.27e-05 1.05 it/s  6.15 h
+[r2d2] step 23300 loss 0.1520 lr 7.19e-05 1.04 it/s  6.20 h
+[r2d2] step 23400 loss 0.1528 lr 7.12e-05 1.04 it/s  6.23 h
+[r2d2] step 23500 loss 0.1543 lr 7.05e-05 1.04 it/s  6.25 h
+[r2d2] step 23600 loss 0.1572 lr 6.97e-05 1.04 it/s  6.28 h
+[r2d2] step 23700 loss 0.1486 lr 6.90e-05 1.04 it/s  6.31 h
+[r2d2] step 23800 loss 0.1548 lr 6.83e-05 1.04 it/s  6.35 h
+[r2d2] step 23900 loss 0.1518 lr 6.76e-05 1.04 it/s  6.38 h
+[r2d2] step 24000 loss 0.1564 lr 6.68e-05 1.04 it/s  6.41 h
+[r2d2] === step 24000 val(EMA) 0.1487 (best 0.1507)
+[r2d2] step 24100 loss 0.1612 lr 6.61e-05 1.04 it/s  6.45 h
+[r2d2] step 24200 loss 0.1627 lr 6.54e-05 1.04 it/s  6.48 h
+[r2d2] step 24300 loss 0.1541 lr 6.47e-05 1.03 it/s  6.52 h
+[r2d2] step 24400 loss 0.1592 lr 6.40e-05 1.03 it/s  6.55 h
+[r2d2] step 24500 loss 0.1460 lr 6.33e-05 1.03 it/s  6.59 h
+[r2d2] step 24600 loss 0.1592 lr 6.26e-05 1.03 it/s  6.62 h
+[r2d2] step 24700 loss 0.1522 lr 6.19e-05 1.03 it/s  6.65 h
+[r2d2] step 24800 loss 0.1531 lr 6.12e-05 1.03 it/s  6.68 h
+[r2d2] step 24900 loss 0.1580 lr 6.05e-05 1.03 it/s  6.71 h
+[r2d2] step 25000 loss 0.1528 lr 5.98e-05 1.03 it/s  6.74 h
+[r2d2] step 25100 loss 0.1589 lr 5.91e-05 1.03 it/s  6.77 h
+[r2d2] step 25200 loss 0.1676 lr 5.84e-05 1.03 it/s  6.80 h
+[r2d2] step 25300 loss 0.1608 lr 5.77e-05 1.03 it/s  6.82 h
+[r2d2] step 25400 loss 0.1604 lr 5.71e-05 1.03 it/s  6.85 h
+[r2d2] step 25500 loss 0.1517 lr 5.64e-05 1.03 it/s  6.88 h
+[r2d2] step 25600 loss 0.1535 lr 5.57e-05 1.03 it/s  6.91 h
+[r2d2] step 25700 loss 0.1646 lr 5.50e-05 1.03 it/s  6.94 h
+[r2d2] step 25800 loss 0.1540 lr 5.44e-05 1.03 it/s  6.98 h
+[r2d2] step 25900 loss 0.1524 lr 5.37e-05 1.03 it/s  7.01 h
+[r2d2] step 26000 loss 0.1635 lr 5.30e-05 1.03 it/s  7.04 h
+[r2d2] === step 26000 val(EMA) 0.1470 (best 0.1487)
+[r2d2] step 26100 loss 0.1556 lr 5.24e-05 1.02 it/s  7.08 h
+[r2d2] step 26200 loss 0.1629 lr 5.17e-05 1.02 it/s  7.11 h
+[r2d2] step 26300 loss 0.1590 lr 5.11e-05 1.02 it/s  7.15 h
+[r2d2] step 26400 loss 0.1500 lr 5.04e-05 1.02 it/s  7.18 h
+[r2d2] step 26500 loss 0.1566 lr 4.98e-05 1.02 it/s  7.21 h
+[r2d2] step 26600 loss 0.1542 lr 4.92e-05 1.02 it/s  7.24 h
+[r2d2] step 26700 loss 0.1532 lr 4.85e-05 1.02 it/s  7.27 h
+[r2d2] step 26800 loss 0.1534 lr 4.79e-05 1.02 it/s  7.30 h
+[r2d2] step 26900 loss 0.1514 lr 4.73e-05 1.02 it/s  7.33 h
+[r2d2] step 27000 loss 0.1616 lr 4.67e-05 1.02 it/s  7.36 h
+[r2d2] step 27100 loss 0.1581 lr 4.60e-05 1.02 it/s  7.39 h
+[r2d2] step 27200 loss 0.1570 lr 4.54e-05 1.02 it/s  7.42 h
+[r2d2] step 27300 loss 0.1584 lr 4.48e-05 1.02 it/s  7.45 h
+[r2d2] step 27400 loss 0.1532 lr 4.42e-05 1.02 it/s  7.48 h
+[r2d2] step 27500 loss 0.1569 lr 4.36e-05 1.02 it/s  7.51 h
+[r2d2] step 27600 loss 0.1591 lr 4.30e-05 1.02 it/s  7.54 h
+[r2d2] step 27700 loss 0.1478 lr 4.24e-05 1.02 it/s  7.57 h
+[r2d2] step 27800 loss 0.1552 lr 4.18e-05 1.02 it/s  7.60 h
+[r2d2] step 27900 loss 0.1491 lr 4.12e-05 1.02 it/s  7.63 h
+[r2d2] step 28000 loss 0.1602 lr 4.07e-05 1.02 it/s  7.65 h
+[r2d2] === step 28000 val(EMA) 0.1457 (best 0.1470)
+[r2d2] step 28100 loss 0.1498 lr 4.01e-05 1.01 it/s  7.69 h
+[r2d2] step 28200 loss 0.1500 lr 3.95e-05 1.01 it/s  7.73 h
+[r2d2] step 28300 loss 0.1595 lr 3.90e-05 1.01 it/s  7.76 h
+[r2d2] step 28400 loss 0.1474 lr 3.84e-05 1.01 it/s  7.79 h
+[r2d2] step 28500 loss 0.1452 lr 3.78e-05 1.01 it/s  7.81 h
+[r2d2] step 28600 loss 0.1514 lr 3.73e-05 1.01 it/s  7.84 h
+[r2d2] step 28700 loss 0.1535 lr 3.67e-05 1.01 it/s  7.87 h
+[r2d2] step 28800 loss 0.1499 lr 3.62e-05 1.01 it/s  7.91 h
+[r2d2] step 28900 loss 0.1529 lr 3.56e-05 1.01 it/s  7.93 h
+[r2d2] step 29000 loss 0.1540 lr 3.51e-05 1.01 it/s  7.97 h
+[r2d2] step 29100 loss 0.1631 lr 3.46e-05 1.01 it/s  7.99 h
+[r2d2] === step 29118 val(EMA) 0.1451 (best 0.1457)
+done
+_________________________________________________________________________
+Job Resource Usage Summary for 58549959
+
+  Job Pending                     : 00:00:04
+  Job Started                     : Thu Sep 24 20:59:18 EDT 2026
+  Job Ended                       : Fri Sep 25 05:00:46 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa003
+  Charged to                      : s1001
+
+  Estimated SBUs                  : 9.08
+
+  Total Mem Requested / Allocated : 120.00G / G
+  Max Real Mem Used (on any node) : 675.34G
+  Max Pct Memory Used             : %
+
+  Walltime Requested              : 09:30:00
+  Walltime Used                   : 08:01:28
+  Pct Walltime Used               : 84.46%
+
+  CPUs Requested / Allocated      : 12 / 12
+  Total CPU-Time Allocated        : 4-00:17:36 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 03:23:09 of 4-00:17:36
+  System CPU                      : 11:09:35 of 4-00:17:36
+  Pct CPU Utilization             : 15.10%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

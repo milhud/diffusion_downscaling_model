@@ -27,3 +27,8 @@ train_error.*
 train_output.*
 pipeline_test_error.*
 pipeline_test_output.*
+
+# Event benchmark raw prediction dumps (200-300MB each, regenerable via
+# src/evaluation/event_predict.py; over GitHub's 100MB file limit)
+event_benchmark_output/data/pred_*.npz
+event_benchmark_output/data/predb_*.npz

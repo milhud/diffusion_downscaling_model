@@ -1,0 +1,1 @@
+/gpfsm/dnb33/hpmille1/final_data/conus404_yearly_1986.nc

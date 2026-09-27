@@ -1,0 +1,397 @@
+[Data] Using cached data from /discover/nobackup/sduan/.data
+[Data] Skipped 63 fully-NaN days (from nan_days.json)
+[Data] 1096 valid days in test set
+  1/300  wet_frac=0.002  SKIP (too dry)
+  2/300  wet_frac=0.000  SKIP (too dry)
+  3/300  year=2018 day=2 y0=512 x0=576  wet_frac=0.025  mean_mm=0.071  rmse=0.1341
+  4/300  wet_frac=0.000  SKIP (too dry)
+  5/300  year=2018 day=4 y0=448 x0=768  wet_frac=0.052  mean_mm=0.210  rmse=0.1915
+  6/300  year=2018 day=5 y0=384 x0=256  wet_frac=0.353  mean_mm=1.132  rmse=0.2148
+  7/300  year=2018 day=6 y0=448 x0=448  wet_frac=0.273  mean_mm=0.896  rmse=0.1958
+  8/300  wet_frac=0.000  SKIP (too dry)
+  9/300  wet_frac=0.000  SKIP (too dry)
+  10/300  year=2018 day=9 y0=384 x0=576  wet_frac=0.079  mean_mm=0.232  rmse=0.1690
+  11/300  year=2018 day=10 y0=384 x0=256  wet_frac=0.209  mean_mm=0.573  rmse=0.2322
+  12/300  year=2018 day=11 y0=320 x0=384  wet_frac=0.093  mean_mm=0.394  rmse=0.2064
+  13/300  year=2018 day=12 y0=448 x0=256  wet_frac=0.041  mean_mm=0.099  rmse=0.1659
+  14/300  wet_frac=0.000  SKIP (too dry)
+  15/300  year=2018 day=14 y0=384 x0=512  wet_frac=0.515  mean_mm=1.079  rmse=0.3051
+  16/300  year=2018 day=15 y0=384 x0=576  wet_frac=0.026  mean_mm=0.102  rmse=0.2255
+  17/300  wet_frac=0.000  SKIP (too dry)
+  18/300  wet_frac=0.000  SKIP (too dry)
+  19/300  year=2018 day=18 y0=576 x0=320  wet_frac=0.583  mean_mm=3.442  rmse=0.2728
+  20/300  year=2018 day=19 y0=448 x0=512  wet_frac=0.075  mean_mm=0.279  rmse=0.2121
+  21/300  year=2018 day=20 y0=192 x0=448  wet_frac=0.161  mean_mm=0.413  rmse=0.1705
+  22/300  wet_frac=0.011  SKIP (too dry)
+  23/300  year=2018 day=22 y0=448 x0=320  wet_frac=0.141  mean_mm=0.260  rmse=0.2073
+  24/300  wet_frac=0.000  SKIP (too dry)
+  25/300  year=2018 day=24 y0=512 x0=896  wet_frac=0.036  mean_mm=0.085  rmse=0.1494
+  26/300  year=2018 day=25 y0=128 x0=384  wet_frac=0.043  mean_mm=0.070  rmse=0.1426
+  27/300  year=2018 day=26 y0=448 x0=512  wet_frac=0.022  mean_mm=0.037  rmse=0.1543
+  28/300  year=2018 day=27 y0=384 x0=768  wet_frac=0.355  mean_mm=4.076  rmse=0.2549
+  29/300  wet_frac=0.013  SKIP (too dry)
+  30/300  wet_frac=0.000  SKIP (too dry)
+  31/300  wet_frac=0.000  SKIP (too dry)
+  32/300  year=2018 day=31 y0=448 x0=448  wet_frac=0.159  mean_mm=0.339  rmse=0.2063
+  33/300  wet_frac=0.011  SKIP (too dry)
+  34/300  wet_frac=0.013  SKIP (too dry)
+  35/300  year=2018 day=34 y0=576 x0=256  wet_frac=0.557  mean_mm=4.615  rmse=0.2691
+  36/300  year=2018 day=35 y0=384 x0=448  wet_frac=0.263  mean_mm=0.899  rmse=0.2404
+  37/300  year=2018 day=36 y0=384 x0=768  wet_frac=0.446  mean_mm=1.060  rmse=0.2713
+  38/300  year=2018 day=37 y0=512 x0=192  wet_frac=0.113  mean_mm=0.476  rmse=0.1835
+  39/300  wet_frac=0.006  SKIP (too dry)
+  40/300  year=2018 day=39 y0=512 x0=512  wet_frac=0.567  mean_mm=1.917  rmse=0.2553
+  41/300  year=2018 day=40 y0=576 x0=384  wet_frac=0.140  mean_mm=0.221  rmse=0.2045
+  42/300  year=2018 day=41 y0=448 x0=384  wet_frac=0.233  mean_mm=0.684  rmse=0.2315
+  43/300  wet_frac=0.001  SKIP (too dry)
+  44/300  year=2018 day=43 y0=64 x0=448  wet_frac=0.161  mean_mm=0.286  rmse=0.2009
+  45/300  year=2018 day=44 y0=192 x0=320  wet_frac=0.162  mean_mm=0.281  rmse=0.1916
+  46/300  year=2018 day=45 y0=576 x0=128  wet_frac=0.556  mean_mm=1.218  rmse=0.2273
+  47/300  year=2018 day=46 y0=320 x0=448  wet_frac=0.216  mean_mm=1.096  rmse=0.2270
+  48/300  year=2018 day=47 y0=192 x0=576  wet_frac=0.770  mean_mm=3.923  rmse=0.2906
+  49/300  year=2018 day=48 y0=256 x0=640  wet_frac=0.281  mean_mm=0.680  rmse=0.2168
+  50/300  year=2018 day=49 y0=64 x0=448  wet_frac=0.143  mean_mm=0.619  rmse=0.1995
+  51/300  year=2018 day=50 y0=448 x0=256  wet_frac=0.267  mean_mm=0.822  rmse=0.2850
+  52/300  year=2018 day=51 y0=576 x0=192  wet_frac=0.198  mean_mm=0.622  rmse=0.2504
+  53/300  year=2018 day=52 y0=512 x0=704  wet_frac=0.568  mean_mm=2.278  rmse=0.3022
+  54/300  year=2018 day=53 y0=384 x0=640  wet_frac=0.754  mean_mm=9.124  rmse=0.4559
+  55/300  year=2018 day=54 y0=192 x0=512  wet_frac=0.477  mean_mm=5.705  rmse=0.2736
+  56/300  year=2018 day=55 y0=128 x0=384  wet_frac=0.024  mean_mm=0.096  rmse=0.1747
+  57/300  year=2018 day=56 y0=384 x0=384  wet_frac=0.042  mean_mm=0.215  rmse=0.1939
+  58/300  year=2018 day=57 y0=384 x0=896  wet_frac=0.036  mean_mm=0.050  rmse=0.1012
+  59/300  year=2018 day=58 y0=192 x0=576  wet_frac=0.467  mean_mm=3.893  rmse=0.3604
+  60/300  wet_frac=0.003  SKIP (too dry)
+  61/300  year=2018 day=60 y0=448 x0=384  wet_frac=0.120  mean_mm=0.667  rmse=0.1971
+  62/300  year=2018 day=61 y0=576 x0=128  wet_frac=0.626  mean_mm=2.663  rmse=0.2854
+  63/300  year=2018 day=62 y0=320 x0=704  wet_frac=0.225  mean_mm=0.475  rmse=0.2026
+  64/300  year=2018 day=63 y0=256 x0=640  wet_frac=0.616  mean_mm=2.715  rmse=0.3539
+  65/300  year=2018 day=64 y0=384 x0=384  wet_frac=0.047  mean_mm=0.161  rmse=0.1757
+  66/300  wet_frac=0.000  SKIP (too dry)
+  67/300  wet_frac=0.004  SKIP (too dry)
+  68/300  year=2018 day=67 y0=64 x0=448  wet_frac=0.107  mean_mm=0.141  rmse=0.1379
+  69/300  year=2018 day=68 y0=448 x0=768  wet_frac=0.201  mean_mm=1.216  rmse=0.2027
+  70/300  year=2018 day=69 y0=448 x0=576  wet_frac=0.442  mean_mm=1.987  rmse=0.3254
+  71/300  year=2018 day=70 y0=576 x0=896  wet_frac=0.279  mean_mm=0.585  rmse=0.1979
+  72/300  year=2018 day=71 y0=256 x0=768  wet_frac=0.044  mean_mm=0.077  rmse=0.0936
+  73/300  year=2018 day=72 y0=512 x0=128  wet_frac=0.867  mean_mm=7.779  rmse=0.3515
+  74/300  year=2018 day=73 y0=512 x0=192  wet_frac=0.715  mean_mm=4.531  rmse=0.3729
+  75/300  year=2018 day=74 y0=192 x0=576  wet_frac=0.229  mean_mm=0.605  rmse=0.2149
+  76/300  year=2018 day=75 y0=320 x0=384  wet_frac=0.025  mean_mm=0.091  rmse=0.1524
+  77/300  wet_frac=0.001  SKIP (too dry)
+  78/300  wet_frac=0.018  SKIP (too dry)
+  79/300  year=2018 day=78 y0=320 x0=704  wet_frac=0.533  mean_mm=2.794  rmse=0.2832
+  80/300  wet_frac=0.000  SKIP (too dry)
+  81/300  year=2018 day=80 y0=448 x0=256  wet_frac=0.594  mean_mm=4.744  rmse=0.3074
+  82/300  year=2018 day=81 y0=448 x0=256  wet_frac=0.867  mean_mm=6.622  rmse=0.3795
+  83/300  year=2018 day=82 y0=256 x0=704  wet_frac=0.275  mean_mm=3.984  rmse=0.2172
+  84/300  year=2018 day=83 y0=384 x0=832  wet_frac=0.509  mean_mm=3.543  rmse=0.3131
+  85/300  year=2018 day=84 y0=256 x0=512  wet_frac=0.300  mean_mm=1.116  rmse=0.3074
+  86/300  year=2018 day=85 y0=320 x0=704  wet_frac=0.667  mean_mm=13.868  rmse=0.3621
+  87/300  year=2018 day=86 y0=384 x0=512  wet_frac=0.375  mean_mm=1.185  rmse=0.2897
+  88/300  year=2018 day=87 y0=320 x0=512  wet_frac=0.515  mean_mm=2.101  rmse=0.4039
+  89/300  year=2018 day=88 y0=576 x0=384  wet_frac=0.463  mean_mm=1.617  rmse=0.2380
+  90/300  year=2018 day=89 y0=384 x0=512  wet_frac=0.072  mean_mm=0.166  rmse=0.1693
+  91/300  year=2018 day=90 y0=384 x0=640  wet_frac=0.583  mean_mm=3.064  rmse=0.3064
+  92/300  year=2018 day=91 y0=384 x0=512  wet_frac=0.176  mean_mm=0.271  rmse=0.1853
+  93/300  year=2018 day=92 y0=320 x0=256  wet_frac=0.052  mean_mm=0.202  rmse=0.1867
+  94/300  year=2018 day=93 y0=128 x0=384  wet_frac=0.025  mean_mm=0.067  rmse=0.1673
+  95/300  year=2018 day=94 y0=448 x0=128  wet_frac=0.248  mean_mm=0.526  rmse=0.1771
+  96/300  year=2018 day=95 y0=448 x0=512  wet_frac=0.501  mean_mm=2.727  rmse=0.2869
+  97/300  year=2018 day=96 y0=576 x0=192  wet_frac=0.962  mean_mm=9.713  rmse=0.2923
+  98/300  year=2018 day=97 y0=320 x0=576  wet_frac=0.408  mean_mm=1.352  rmse=0.2279
+  99/300  wet_frac=0.001  SKIP (too dry)
+  100/300  year=2018 day=99 y0=576 x0=384  wet_frac=0.040  mean_mm=0.065  rmse=0.1364
+  101/300  wet_frac=0.005  SKIP (too dry)
+  102/300  year=2018 day=101 y0=128 x0=320  wet_frac=0.042  mean_mm=0.134  rmse=0.1810
+  103/300  year=2018 day=102 y0=512 x0=576  wet_frac=0.737  mean_mm=8.837  rmse=0.3764
+  104/300  year=2018 day=103 y0=384 x0=768  wet_frac=0.831  mean_mm=18.353  rmse=0.5199
+  105/300  year=2018 day=104 y0=576 x0=640  wet_frac=0.668  mean_mm=6.336  rmse=0.2918
+  106/300  wet_frac=0.000  SKIP (too dry)
+  107/300  wet_frac=0.000  SKIP (too dry)
+  108/300  year=2018 day=107 y0=448 x0=448  wet_frac=0.382  mean_mm=1.783  rmse=0.2689
+  109/300  year=2018 day=108 y0=192 x0=576  wet_frac=0.042  mean_mm=0.119  rmse=0.1610
+  110/300  wet_frac=0.008  SKIP (too dry)
+  111/300  year=2018 day=110 y0=256 x0=832  wet_frac=0.020  mean_mm=0.045  rmse=0.1282
+  112/300  wet_frac=0.009  SKIP (too dry)
+  113/300  year=2018 day=112 y0=576 x0=128  wet_frac=0.031  mean_mm=0.090  rmse=0.1431
+  114/300  year=2018 day=113 y0=512 x0=960  wet_frac=0.557  mean_mm=4.910  rmse=0.2673
+  115/300  year=2018 day=114 y0=576 x0=896  wet_frac=0.860  mean_mm=8.095  rmse=0.3313
+  116/300  wet_frac=0.000  SKIP (too dry)
+  117/300  year=2018 day=116 y0=448 x0=640  wet_frac=0.186  mean_mm=0.663  rmse=0.2245
+  118/300  year=2018 day=117 y0=448 x0=640  wet_frac=0.067  mean_mm=0.117  rmse=0.1369
+  119/300  year=2018 day=118 y0=512 x0=640  wet_frac=0.034  mean_mm=0.068  rmse=0.1147
+  120/300  year=2018 day=119 y0=128 x0=512  wet_frac=0.192  mean_mm=0.640  rmse=0.2847
+  121/300  year=2018 day=120 y0=512 x0=320  wet_frac=0.556  mean_mm=3.606  rmse=0.4073
+  122/300  year=2018 day=121 y0=384 x0=832  wet_frac=0.137  mean_mm=0.543  rmse=0.2069
+  123/300  year=2018 day=122 y0=448 x0=512  wet_frac=0.560  mean_mm=8.498  rmse=0.5146
+  124/300  year=2018 day=123 y0=256 x0=640  wet_frac=0.428  mean_mm=3.657  rmse=0.3931
+  125/300  year=2018 day=124 y0=128 x0=448  wet_frac=0.186  mean_mm=1.223  rmse=0.3557
+  126/300  wet_frac=0.000  SKIP (too dry)
+  127/300  year=2018 day=126 y0=448 x0=192  wet_frac=0.033  mean_mm=0.070  rmse=0.1542
+  128/300  year=2018 day=127 y0=320 x0=640  wet_frac=0.020  mean_mm=0.049  rmse=0.1394
+  129/300  year=2018 day=128 y0=128 x0=384  wet_frac=0.047  mean_mm=0.143  rmse=0.1799
+  130/300  year=2018 day=129 y0=320 x0=512  wet_frac=0.164  mean_mm=0.497  rmse=0.2645
+  131/300  year=2018 day=130 y0=576 x0=512  wet_frac=0.547  mean_mm=6.010  rmse=0.3588
+  132/300  year=2018 day=131 y0=320 x0=192  wet_frac=0.146  mean_mm=0.797  rmse=0.2639
+  133/300  year=2018 day=132 y0=512 x0=896  wet_frac=0.438  mean_mm=3.647  rmse=0.3282
+  134/300  year=2018 day=133 y0=192 x0=320  wet_frac=0.033  mean_mm=0.215  rmse=0.1746
+  135/300  year=2018 day=134 y0=320 x0=768  wet_frac=0.359  mean_mm=3.130  rmse=0.5232
+  136/300  year=2018 day=135 y0=320 x0=640  wet_frac=0.438  mean_mm=3.806  rmse=0.5560
+  137/300  year=2018 day=136 y0=448 x0=384  wet_frac=0.162  mean_mm=0.701  rmse=0.3231
+  138/300  year=2018 day=137 y0=256 x0=384  wet_frac=0.085  mean_mm=0.396  rmse=0.2498
+  139/300  year=2018 day=138 y0=640 x0=192  wet_frac=0.518  mean_mm=1.516  rmse=0.3350
+  140/300  year=2018 day=139 y0=384 x0=512  wet_frac=0.574  mean_mm=3.761  rmse=0.5154
+  141/300  year=2018 day=140 y0=64 x0=384  wet_frac=0.368  mean_mm=1.782  rmse=0.3493
+  142/300  year=2018 day=141 y0=128 x0=448  wet_frac=0.395  mean_mm=4.438  rmse=0.5847
+  143/300  year=2018 day=142 y0=384 x0=384  wet_frac=0.318  mean_mm=1.779  rmse=0.4088
+  144/300  year=2018 day=143 y0=192 x0=640  wet_frac=0.484  mean_mm=3.685  rmse=0.4779
+  145/300  year=2018 day=144 y0=512 x0=192  wet_frac=0.319  mean_mm=2.338  rmse=0.3319
+  146/300  year=2018 day=145 y0=512 x0=768  wet_frac=0.485  mean_mm=3.070  rmse=0.5014
+  147/300  year=2018 day=146 y0=576 x0=448  wet_frac=0.421  mean_mm=2.834  rmse=0.4357
+  148/300  year=2018 day=147 y0=512 x0=960  wet_frac=0.504  mean_mm=2.821  rmse=0.4488
+  149/300  year=2018 day=148 y0=384 x0=704  wet_frac=0.344  mean_mm=3.487  rmse=0.4253
+  150/300  year=2018 day=149 y0=384 x0=640  wet_frac=0.717  mean_mm=9.234  rmse=0.5752
+  151/300  year=2018 day=150 y0=576 x0=576  wet_frac=0.380  mean_mm=2.260  rmse=0.4232
+  152/300  year=2018 day=151 y0=448 x0=448  wet_frac=0.116  mean_mm=0.588  rmse=0.2561
+  153/300  year=2018 day=152 y0=384 x0=640  wet_frac=0.519  mean_mm=8.543  rmse=0.5844
+  154/300  year=2018 day=153 y0=320 x0=384  wet_frac=0.147  mean_mm=0.655  rmse=0.2835
+  155/300  year=2018 day=154 y0=320 x0=704  wet_frac=0.041  mean_mm=0.488  rmse=0.2067
+  156/300  year=2018 day=155 y0=512 x0=256  wet_frac=0.030  mean_mm=0.193  rmse=0.1790
+  157/300  year=2018 day=156 y0=512 x0=960  wet_frac=0.176  mean_mm=0.698  rmse=0.2562
+  158/300  year=2018 day=157 y0=384 x0=768  wet_frac=0.124  mean_mm=0.708  rmse=0.3147
+  159/300  year=2018 day=158 y0=448 x0=128  wet_frac=0.046  mean_mm=0.086  rmse=0.1365
+  160/300  year=2018 day=159 y0=256 x0=576  wet_frac=0.103  mean_mm=0.561  rmse=0.2796
+  161/300  year=2018 day=160 y0=512 x0=320  wet_frac=0.178  mean_mm=1.201  rmse=0.2199
+  162/300  wet_frac=0.000  SKIP (too dry)
+  163/300  year=2018 day=162 y0=448 x0=832  wet_frac=0.579  mean_mm=5.116  rmse=0.5142
+  164/300  year=2018 day=163 y0=576 x0=384  wet_frac=0.022  mean_mm=0.044  rmse=0.1342
+  165/300  year=2018 day=164 y0=576 x0=448  wet_frac=0.030  mean_mm=0.050  rmse=0.2122
+  166/300  year=2018 day=165 y0=192 x0=448  wet_frac=0.156  mean_mm=0.376  rmse=0.2322
+  167/300  year=2018 day=166 y0=576 x0=960  wet_frac=0.067  mean_mm=0.346  rmse=0.1739
+  168/300  year=2018 day=167 y0=320 x0=832  wet_frac=0.330  mean_mm=2.880  rmse=0.4924
+  169/300  year=2018 day=168 y0=448 x0=320  wet_frac=0.533  mean_mm=4.842  rmse=0.4523
+  170/300  year=2018 day=169 y0=512 x0=768  wet_frac=0.644  mean_mm=7.452  rmse=0.4558
+  171/300  wet_frac=0.010  SKIP (too dry)
+  172/300  year=2018 day=171 y0=384 x0=896  wet_frac=0.724  mean_mm=7.814  rmse=0.5393
+  173/300  year=2018 day=172 y0=128 x0=320  wet_frac=0.031  mean_mm=0.214  rmse=0.2033
+  174/300  year=2018 day=173 y0=576 x0=576  wet_frac=0.547  mean_mm=3.734  rmse=0.4720
+  175/300  year=2018 day=174 y0=448 x0=256  wet_frac=0.128  mean_mm=0.603  rmse=0.2409
+  176/300  year=2018 day=175 y0=256 x0=640  wet_frac=0.452  mean_mm=10.350  rmse=0.4631
+  177/300  year=2018 day=176 y0=320 x0=576  wet_frac=0.237  mean_mm=3.036  rmse=0.4743
+  178/300  year=2018 day=177 y0=320 x0=576  wet_frac=0.107  mean_mm=1.041  rmse=0.3016
+  179/300  year=2018 day=178 y0=448 x0=896  wet_frac=0.590  mean_mm=5.433  rmse=0.5645
+  180/300  wet_frac=0.001  SKIP (too dry)
+  181/300  year=2018 day=180 y0=512 x0=768  wet_frac=0.106  mean_mm=1.237  rmse=0.3511
+  182/300  year=2018 day=181 y0=192 x0=512  wet_frac=0.146  mean_mm=1.227  rmse=0.3574
+  183/300  year=2018 day=182 y0=576 x0=256  wet_frac=0.067  mean_mm=0.210  rmse=0.1810
+  184/300  year=2018 day=183 y0=320 x0=384  wet_frac=0.117  mean_mm=0.788  rmse=0.2957
+  185/300  wet_frac=0.004  SKIP (too dry)
+  186/300  year=2018 day=185 y0=576 x0=448  wet_frac=0.076  mean_mm=0.469  rmse=0.2409
+  187/300  year=2018 day=186 y0=512 x0=960  wet_frac=0.717  mean_mm=5.913  rmse=0.4634
+  188/300  year=2018 day=187 y0=320 x0=896  wet_frac=0.458  mean_mm=3.671  rmse=0.5832
+  189/300  year=2018 day=188 y0=384 x0=384  wet_frac=0.232  mean_mm=0.902  rmse=0.3197
+  190/300  year=2018 day=189 y0=256 x0=576  wet_frac=0.341  mean_mm=2.864  rmse=0.4792
+  191/300  year=2018 day=190 y0=512 x0=768  wet_frac=0.057  mean_mm=0.179  rmse=0.1851
+  192/300  year=2018 day=191 y0=448 x0=384  wet_frac=0.318  mean_mm=1.258  rmse=0.3299
+  193/300  year=2018 day=192 y0=192 x0=448  wet_frac=0.294  mean_mm=1.859  rmse=0.3701
+  194/300  year=2018 day=193 y0=512 x0=192  wet_frac=0.073  mean_mm=0.235  rmse=0.1940
+  195/300  year=2018 day=194 y0=256 x0=256  wet_frac=0.499  mean_mm=3.365  rmse=0.4618
+  196/300  year=2018 day=195 y0=448 x0=384  wet_frac=0.286  mean_mm=1.475  rmse=0.3871
+  197/300  year=2018 day=196 y0=512 x0=256  wet_frac=0.281  mean_mm=0.717  rmse=0.3196
+  198/300  year=2018 day=197 y0=576 x0=448  wet_frac=0.361  mean_mm=3.064  rmse=0.4458
+  199/300  year=2018 day=198 y0=448 x0=896  wet_frac=0.111  mean_mm=1.254  rmse=0.3087
+  200/300  year=2018 day=199 y0=384 x0=192  wet_frac=0.153  mean_mm=0.759  rmse=0.2851
+  201/300  year=2018 day=200 y0=384 x0=640  wet_frac=0.281  mean_mm=2.726  rmse=0.4241
+  202/300  year=2018 day=201 y0=256 x0=640  wet_frac=0.067  mean_mm=0.296  rmse=0.2025
+  203/300  year=2018 day=202 y0=384 x0=832  wet_frac=0.680  mean_mm=6.719  rmse=0.5478
+  204/300  year=2018 day=203 y0=576 x0=448  wet_frac=0.169  mean_mm=1.029  rmse=0.3362
+  205/300  year=2018 day=204 y0=256 x0=256  wet_frac=0.247  mean_mm=0.996  rmse=0.3434
+  206/300  year=2018 day=205 y0=320 x0=768  wet_frac=0.150  mean_mm=1.172  rmse=0.3152
+  207/300  year=2018 day=206 y0=448 x0=640  wet_frac=0.423  mean_mm=2.547  rmse=0.4789
+  208/300  year=2018 day=207 y0=384 x0=576  wet_frac=0.176  mean_mm=0.761  rmse=0.4071
+  209/300  year=2018 day=208 y0=448 x0=576  wet_frac=0.622  mean_mm=5.403  rmse=0.5174
+  210/300  year=2018 day=209 y0=448 x0=704  wet_frac=0.490  mean_mm=3.218  rmse=0.4705
+  211/300  year=2018 day=210 y0=384 x0=256  wet_frac=0.071  mean_mm=0.234  rmse=0.2230
+  212/300  wet_frac=0.005  SKIP (too dry)
+  213/300  year=2018 day=212 y0=576 x0=448  wet_frac=0.043  mean_mm=0.176  rmse=0.1674
+  214/300  year=2018 day=213 y0=384 x0=320  wet_frac=0.322  mean_mm=1.057  rmse=0.3419
+  215/300  year=2018 day=214 y0=320 x0=576  wet_frac=0.025  mean_mm=0.088  rmse=0.1630
+  216/300  year=2018 day=215 y0=320 x0=448  wet_frac=0.459  mean_mm=2.015  rmse=0.3687
+  217/300  year=2018 day=216 y0=512 x0=704  wet_frac=0.370  mean_mm=1.946  rmse=0.3998
+  218/300  year=2018 day=217 y0=256 x0=320  wet_frac=0.139  mean_mm=0.504  rmse=0.2832
+  219/300  year=2018 day=218 y0=256 x0=384  wet_frac=0.205  mean_mm=1.076  rmse=0.3289
+  220/300  wet_frac=0.000  SKIP (too dry)
+  221/300  year=2018 day=220 y0=448 x0=512  wet_frac=0.063  mean_mm=0.223  rmse=0.2076
+  222/300  year=2018 day=221 y0=512 x0=960  wet_frac=0.125  mean_mm=0.599  rmse=0.3343
+  223/300  year=2018 day=222 y0=320 x0=640  wet_frac=0.149  mean_mm=0.786  rmse=0.3718
+  224/300  year=2018 day=223 y0=576 x0=960  wet_frac=0.366  mean_mm=2.445  rmse=0.4203
+  225/300  year=2018 day=224 y0=448 x0=576  wet_frac=0.130  mean_mm=0.763  rmse=0.2946
+  226/300  year=2018 day=225 y0=576 x0=448  wet_frac=0.175  mean_mm=0.982  rmse=0.3662
+  227/300  year=2018 day=226 y0=384 x0=448  wet_frac=0.448  mean_mm=3.747  rmse=0.5236
+  228/300  year=2018 day=227 y0=256 x0=384  wet_frac=0.445  mean_mm=2.823  rmse=0.4526
+  229/300  year=2018 day=228 y0=256 x0=384  wet_frac=0.485  mean_mm=3.763  rmse=0.5294
+  230/300  year=2018 day=229 y0=448 x0=896  wet_frac=0.707  mean_mm=8.063  rmse=0.5701
+  231/300  year=2018 day=230 y0=64 x0=384  wet_frac=0.385  mean_mm=1.585  rmse=0.3934
+  232/300  year=2018 day=231 y0=512 x0=960  wet_frac=0.149  mean_mm=0.657  rmse=0.3309
+  233/300  year=2018 day=232 y0=512 x0=192  wet_frac=0.143  mean_mm=0.581  rmse=0.2553
+  234/300  year=2018 day=233 y0=320 x0=704  wet_frac=0.041  mean_mm=0.084  rmse=0.1659
+  235/300  year=2018 day=234 y0=256 x0=320  wet_frac=0.341  mean_mm=1.571  rmse=0.4741
+  236/300  year=2018 day=235 y0=320 x0=256  wet_frac=0.102  mean_mm=0.376  rmse=0.3132
+  237/300  year=2018 day=236 y0=448 x0=320  wet_frac=0.038  mean_mm=0.110  rmse=0.2128
+  238/300  year=2018 day=237 y0=320 x0=832  wet_frac=0.127  mean_mm=0.710  rmse=0.3404
+  239/300  year=2018 day=238 y0=384 x0=320  wet_frac=0.152  mean_mm=0.413  rmse=0.2666
+  240/300  year=2018 day=239 y0=384 x0=384  wet_frac=0.027  mean_mm=0.052  rmse=0.1761
+  241/300  wet_frac=0.000  SKIP (too dry)
+  242/300  year=2018 day=241 y0=128 x0=384  wet_frac=0.215  mean_mm=1.605  rmse=0.3387
+  243/300  year=2018 day=242 y0=512 x0=512  wet_frac=0.107  mean_mm=0.726  rmse=0.3047
+  244/300  year=2018 day=243 y0=512 x0=512  wet_frac=0.197  mean_mm=1.929  rmse=0.3745
+  245/300  year=2018 day=244 y0=512 x0=768  wet_frac=0.645  mean_mm=4.706  rmse=0.4371
+  246/300  year=2018 day=245 y0=320 x0=640  wet_frac=0.424  mean_mm=7.379  rmse=0.5355
+  247/300  year=2018 day=246 y0=448 x0=512  wet_frac=0.529  mean_mm=8.311  rmse=0.5148
+  248/300  wet_frac=0.001  SKIP (too dry)
+  249/300  year=2018 day=248 y0=320 x0=384  wet_frac=0.488  mean_mm=4.357  rmse=0.5121
+  250/300  year=2018 day=249 y0=256 x0=448  wet_frac=0.704  mean_mm=8.118  rmse=0.6284
+  251/300  year=2018 day=250 y0=64 x0=448  wet_frac=0.732  mean_mm=11.264  rmse=0.5426
+  252/300  year=2018 day=251 y0=256 x0=832  wet_frac=0.636  mean_mm=9.428  rmse=0.5715
+  253/300  year=2018 day=252 y0=512 x0=512  wet_frac=0.126  mean_mm=0.982  rmse=0.2969
+  254/300  year=2018 day=253 y0=448 x0=832  wet_frac=0.181  mean_mm=1.146  rmse=0.2567
+  255/300  wet_frac=0.002  SKIP (too dry)
+  256/300  year=2018 day=255 y0=576 x0=256  wet_frac=0.217  mean_mm=0.647  rmse=0.2835
+  257/300  year=2018 day=256 y0=576 x0=512  wet_frac=0.166  mean_mm=0.558  rmse=0.3307
+  258/300  year=2018 day=257 y0=448 x0=576  wet_frac=0.084  mean_mm=0.253  rmse=0.2193
+  259/300  year=2018 day=258 y0=256 x0=576  wet_frac=0.152  mean_mm=1.073  rmse=0.3712
+  260/300  year=2018 day=259 y0=576 x0=512  wet_frac=0.181  mean_mm=1.129  rmse=0.3288
+  261/300  wet_frac=0.000  SKIP (too dry)
+  262/300  year=2018 day=261 y0=256 x0=448  wet_frac=0.180  mean_mm=0.701  rmse=0.3065
+  263/300  year=2018 day=262 y0=512 x0=768  wet_frac=0.700  mean_mm=7.557  rmse=0.4434
+  264/300  year=2018 day=263 y0=448 x0=704  wet_frac=0.654  mean_mm=4.941  rmse=0.4189
+  265/300  wet_frac=0.007  SKIP (too dry)
+  266/300  year=2018 day=265 y0=512 x0=192  wet_frac=0.151  mean_mm=0.545  rmse=0.2480
+  267/300  year=2018 day=266 y0=320 x0=256  wet_frac=0.109  mean_mm=0.341  rmse=0.2320
+  268/300  year=2018 day=267 y0=384 x0=512  wet_frac=0.443  mean_mm=4.245  rmse=0.4468
+  269/300  year=2018 day=268 y0=448 x0=896  wet_frac=0.863  mean_mm=11.035  rmse=0.5101
+  270/300  wet_frac=0.000  SKIP (too dry)
+  271/300  wet_frac=0.000  SKIP (too dry)
+  272/300  year=2018 day=271 y0=256 x0=704  wet_frac=0.163  mean_mm=1.288  rmse=0.3527
+  273/300  year=2018 day=272 y0=256 x0=256  wet_frac=0.243  mean_mm=1.129  rmse=0.3648
+  274/300  year=2018 day=273 y0=384 x0=576  wet_frac=0.414  mean_mm=3.934  rmse=0.2673
+  275/300  year=2018 day=274 y0=64 x0=384  wet_frac=0.396  mean_mm=1.756  rmse=0.3654
+  276/300  year=2018 day=275 y0=448 x0=320  wet_frac=0.587  mean_mm=3.127  rmse=0.3772
+  277/300  year=2018 day=276 y0=448 x0=896  wet_frac=0.612  mean_mm=2.799  rmse=0.3838
+  278/300  year=2018 day=277 y0=384 x0=128  wet_frac=0.428  mean_mm=1.051  rmse=0.2818
+  279/300  year=2018 day=278 y0=320 x0=320  wet_frac=0.306  mean_mm=1.275  rmse=0.2977
+  280/300  year=2018 day=279 y0=384 x0=384  wet_frac=0.736  mean_mm=6.189  rmse=0.4030
+  281/300  year=2018 day=280 y0=576 x0=960  wet_frac=0.459  mean_mm=2.371  rmse=0.3465
+  282/300  year=2018 day=281 y0=384 x0=576  wet_frac=0.883  mean_mm=23.814  rmse=0.5171
+  283/300  year=2018 day=282 y0=512 x0=128  wet_frac=0.354  mean_mm=1.160  rmse=0.2540
+  284/300  year=2018 day=283 y0=448 x0=192  wet_frac=0.295  mean_mm=1.189  rmse=0.2968
+  285/300  year=2018 day=284 y0=576 x0=640  wet_frac=0.136  mean_mm=0.310  rmse=0.2158
+  286/300  year=2018 day=285 y0=512 x0=704  wet_frac=0.240  mean_mm=0.605  rmse=0.1669
+  287/300  year=2018 day=286 y0=384 x0=704  wet_frac=0.741  mean_mm=5.658  rmse=0.3502
+  288/300  wet_frac=0.003  SKIP (too dry)
+  289/300  year=2018 day=288 y0=256 x0=640  wet_frac=0.583  mean_mm=12.896  rmse=0.5062
+  290/300  wet_frac=0.012  SKIP (too dry)
+  291/300  wet_frac=0.001  SKIP (too dry)
+  292/300  year=2018 day=291 y0=320 x0=832  wet_frac=0.170  mean_mm=0.391  rmse=0.1550
+  293/300  year=2018 day=292 y0=192 x0=576  wet_frac=0.588  mean_mm=5.097  rmse=0.4531
+  294/300  wet_frac=0.019  SKIP (too dry)
+  295/300  year=2018 day=294 y0=384 x0=448  wet_frac=0.028  mean_mm=0.050  rmse=0.1694
+  296/300  year=2018 day=295 y0=576 x0=384  wet_frac=0.126  mean_mm=0.364  rmse=0.2188
+  297/300  year=2018 day=296 y0=256 x0=384  wet_frac=0.885  mean_mm=16.835  rmse=0.4075
+  298/300  year=2018 day=297 y0=576 x0=640  wet_frac=0.438  mean_mm=1.133  rmse=0.3621
+  299/300  year=2018 day=298 y0=512 x0=640  wet_frac=0.647  mean_mm=2.214  rmse=0.3403
+  300/300  year=2018 day=299 y0=512 x0=128  wet_frac=0.190  mean_mm=1.197  rmse=0.1599
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_01.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_01.png
+  saved sample_01 <- year=2018 day=281 y0=384 x0=576 wet_frac=0.883 mean_mm=23.814 rmse=0.5171
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_02.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_02.png
+  saved sample_02 <- year=2018 day=103 y0=384 x0=768 wet_frac=0.831 mean_mm=18.353 rmse=0.5199
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_03.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_03.png
+  saved sample_03 <- year=2018 day=296 y0=256 x0=384 wet_frac=0.885 mean_mm=16.835 rmse=0.4075
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_04.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_04.png
+  saved sample_04 <- year=2018 day=85 y0=320 x0=704 wet_frac=0.667 mean_mm=13.868 rmse=0.3621
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_05.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_05.png
+  saved sample_05 <- year=2018 day=288 y0=256 x0=640 wet_frac=0.583 mean_mm=12.896 rmse=0.5062
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_06.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_06.png
+  saved sample_06 <- year=2018 day=250 y0=64 x0=448 wet_frac=0.732 mean_mm=11.264 rmse=0.5426
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_07.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_07.png
+  saved sample_07 <- year=2018 day=268 y0=448 x0=896 wet_frac=0.863 mean_mm=11.035 rmse=0.5101
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_08.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_08.png
+  saved sample_08 <- year=2018 day=175 y0=256 x0=640 wet_frac=0.452 mean_mm=10.350 rmse=0.4631
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_09.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_09.png
+  saved sample_09 <- year=2018 day=251 y0=256 x0=832 wet_frac=0.636 mean_mm=9.428 rmse=0.5715
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_10.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_10.png
+  saved sample_10 <- year=2018 day=149 y0=384 x0=640 wet_frac=0.717 mean_mm=9.234 rmse=0.5752
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_11.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_11.png
+  saved sample_11 <- year=2018 day=53 y0=384 x0=640 wet_frac=0.754 mean_mm=9.124 rmse=0.4559
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_12.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_12.png
+  saved sample_12 <- year=2018 day=102 y0=512 x0=576 wet_frac=0.737 mean_mm=8.837 rmse=0.3764
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_13.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_13.png
+  saved sample_13 <- year=2018 day=152 y0=384 x0=640 wet_frac=0.519 mean_mm=8.543 rmse=0.5844
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_14.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_14.png
+  saved sample_14 <- year=2018 day=122 y0=448 x0=512 wet_frac=0.560 mean_mm=8.498 rmse=0.5146
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_15.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_15.png
+  saved sample_15 <- year=2018 day=246 y0=448 x0=512 wet_frac=0.529 mean_mm=8.311 rmse=0.5148
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_16.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_16.png
+  saved sample_16 <- year=2018 day=249 y0=256 x0=448 wet_frac=0.704 mean_mm=8.118 rmse=0.6284
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_17.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_17.png
+  saved sample_17 <- year=2018 day=114 y0=576 x0=896 wet_frac=0.860 mean_mm=8.095 rmse=0.3313
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_18.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_18.png
+  saved sample_18 <- year=2018 day=229 y0=448 x0=896 wet_frac=0.707 mean_mm=8.063 rmse=0.5701
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_19.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_19.png
+  saved sample_19 <- year=2018 day=171 y0=384 x0=896 wet_frac=0.724 mean_mm=7.814 rmse=0.5393
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_precip_only_v3/sample_20.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var_v3/sample_20.png
+  saved sample_20 <- year=2018 day=72 y0=512 x0=128 wet_frac=0.867 mean_mm=7.779 rmse=0.3515
+
+Saved 20 candidates with exact origins recorded. Any sample_NN can now be regenerated exactly via load_patch(year,day,y0,x0).
+Done: Fri 28 Aug 2026 06:25:43 PM EDT
+_________________________________________________________________________
+Job Resource Usage Summary for 58120071
+
+  Job Pending                     : 00:00:15
+  Job Started                     : Fri Aug 28 18:04:11 EDT 2026
+  Job Ended                       : Fri Aug 28 18:25:44 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa003
+  Charged to                      : s1001
+
+  Estimated SBUs                  : 18.76
+
+  Total Mem Requested / Allocated : 498.04G / G
+  Max Real Mem Used (on any node) : 23.73G
+  Max Pct Memory Used             : %
+
+  Walltime Requested              : 00:45:00
+  Walltime Used                   : 00:21:33
+  Pct Walltime Used               : 47.88%
+
+  CPUs Requested / Allocated      : 1 / 12
+  Total CPU-Time Allocated        : 04:18:36 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 19:51.238 of 04:18:24
+  System CPU                      : 00:23.654 of 04:18:24
+  Pct CPU Utilization             : 7.83%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

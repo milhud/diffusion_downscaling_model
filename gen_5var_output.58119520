@@ -1,0 +1,36 @@
+[Data] Using cached data from /discover/nobackup/sduan/.data
+[Data] Skipped 63 fully-NaN days (from nan_days.json)
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/final_plots/sample_01.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/final_plots/appendix_5var_from_precip_sample05.png from scan_idx=298
+Done: Fri 28 Aug 2026 05:19:42 PM EDT
+_________________________________________________________________________
+Job Resource Usage Summary for 58119520
+
+  Job Pending                     : 00:00:38
+  Job Started                     : Fri Aug 28 17:17:04 EDT 2026
+  Job Ended                       : Fri Aug 28 17:19:43 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa003
+  Charged to                      : s1001
+
+  Estimated SBUs                  : 2.28
+
+  Total Mem Requested / Allocated : 498.04G / G
+  Max Real Mem Used (on any node) : 23.97G
+  Max Pct Memory Used             : %
+
+  Walltime Requested              : 00:20:00
+  Walltime Used                   : 00:02:38
+  Pct Walltime Used               : 13.16%
+
+  CPUs Requested / Allocated      : 1 / 12
+  Total CPU-Time Allocated        : 00:31:36 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 00:17.610 of 00:31:36
+  System CPU                      : 00:23.984 of 00:31:36
+  Pct CPU Utilization             : 2.10%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

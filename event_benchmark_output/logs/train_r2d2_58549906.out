@@ -1,0 +1,36 @@
+[Data] Using cached data from /discover/nobackup/sduan/.data
+[Data] Skipped 63 fully-NaN days (from nan_days.json)
+[r2d2] params 41.5 M
+[r2d2] residual std per channel (normalised units): [0.15888439118862152, 0.19515793025493622, 0.4103166162967682, 0.32885634899139404, 0.18373113870620728, 0.6993629336357117]
+[r2d2] step 100 loss 1.0032 lr 2.00e-05 1.38 it/s  0.02 h
+_________________________________________________________________________
+Job Resource Usage Summary for 58549906
+
+  Job Pending                     : 00:00:00
+  Job Started                     : Thu Sep 24 20:55:45 EDT 2026
+  Job Ended                       : Thu Sep 24 20:59:12 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa003
+  Charged to                      : s1001
+
+  Estimated SBUs                  : .05
+
+  Total Mem Requested / Allocated : 120.00G / G
+  Max Real Mem Used (on any node) : 71.40G
+  Max Pct Memory Used             : %
+
+  Walltime Requested              : 09:30:00
+  Walltime Used                   : 00:03:24
+  Pct Walltime Used               : .59%
+
+  CPUs Requested / Allocated      : 12 / 12
+  Total CPU-Time Allocated        : 00:40:48 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 00:00.185 of 00:41:00
+  System CPU                      : 00:00.038 of 00:41:00
+  Pct CPU Utilization             : 0%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

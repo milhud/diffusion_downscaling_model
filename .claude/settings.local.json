@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)",
+      "Bash(module load:*)",
+      "Bash(sacctmgr show:*)",
+      "Bash(sbatch:*)",
+      "Bash(python:*)",
+      "Bash(squeue:*)",
+      "Bash(scancel:*)",
+      "Bash(bash scripts/start_training_daemon.sh --stage all --no-cache)",
+      "Bash(kill 45129)",
+      "Bash(rm -f train_output.* train_error.*)",
+      "Bash(truncate -s 0 train_loop.log)",
+      "Bash(xargs -I{} bash -c 'echo \"=== File: {} ===\" && grep \"\\\\[Diff\\\\] Epoch\" {} | tail -25')",
+      "Bash(wait)",
+      "Bash(pip show *)",
+      "Bash(huggingface-cli whoami *)",
+      "Bash(hf whoami *)",
+      "Bash(hf auth *)",
+      "Bash(hf repo-files *)",
+      "Bash(hf repo *)",
+      "Bash(hf upload *)",
+      "Bash(hf api *)",
+      "Bash(awk '{print $5, $9}')",
+      "Read(//gpfsm/dnb33/hpmille1/diffusion_downscaling_model/data/**)",
+      "Read(//discover/nobackup/sduan/pipeline/data/processed/**)",
+      "Read(//gpfsm/dnb33/hpmille1/final_data/**)",
+      "Bash(chmod +x scripts/run_fast_eval.sh)",
+      "Bash(chmod +x scripts/run_fast_eval2.sh)",
+      "Bash(chmod +x scripts/run_best_plots.sh)",
+      "Bash(chmod +x scripts/run_3var_plots.sh)",
+      "Bash(chmod +x scripts/run_final_plots.sh)",
+      "Bash(chmod +x scripts/run_diff_contrast.sh)",
+      "Read(//gpfsm/dnb33/hpmille1/diffusion_paper_external/**)",
+      "Read(//gpfsm/dnb33/hpmille1/diffusion_paper_external/results/**)",
+      "Bash(chmod +x scripts/run_paper_plots.sh)"
+    ]
+  }
+}

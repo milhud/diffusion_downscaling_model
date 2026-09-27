@@ -1,0 +1,43 @@
+Start Thu 24 Sep 2026 07:05:23 PM EDT on warpa009
+[Florence] 5 days x 8 members done in 207s
+[Michael] 5 days x 8 members done in 201s
+[CampFire_wind] 5 days x 8 members done in 195s
+[PolarVortex] 5 days x 8 members done in 195s
+[BombCyclone] 5 days x 8 members done in 195s
+[Dorian] 5 days x 8 members done in 200s
+[IowaDerecho] 5 days x 8 members done in 197s
+[Laura] 5 days x 8 members done in 199s
+[LaborDay_heat] 5 days x 8 members done in 196s
+[Sally] 5 days x 8 members done in 202s
+Done Thu 24 Sep 2026 07:39:22 PM EDT
+_________________________________________________________________________
+Job Resource Usage Summary for 58548038
+
+  Job Pending                     : 00:02:34
+  Job Started                     : Thu Sep 24 19:05:11 EDT 2026
+  Job Ended                       : Thu Sep 24 19:39:22 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa009
+  Charged to                      : s1001
+
+  Estimated SBUs                  : .40
+
+  Total Mem Requested / Allocated : 80.00G / 80.00G
+  Max Real Mem Used (on any node) : 2.57G
+  Max Pct Memory Used             : 3.21%
+
+  Walltime Requested              : 04:00:00
+  Walltime Used                   : 00:34:11
+  Pct Walltime Used               : 14.24%
+
+  CPUs Requested / Allocated      : 8 / 8
+  Total CPU-Time Allocated        : 04:33:28 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 32:36.760 of 04:33:28
+  System CPU                      : 00:05.113 of 04:33:28
+  Pct CPU Utilization             : 11.95%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

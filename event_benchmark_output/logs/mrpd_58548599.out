@@ -1,0 +1,41 @@
+BombCyclone done
+CampFire_wind done
+Dorian done
+Florence done
+IowaDerecho done
+LaborDay_heat done
+Laura done
+Michael done
+PolarVortex done
+Sally done
+_________________________________________________________________________
+Job Resource Usage Summary for 58548599
+
+  Job Pending                     : 00:00:03
+  Job Started                     : Thu Sep 24 19:39:26 EDT 2026
+  Job Ended                       : Thu Sep 24 19:40:00 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa009
+  Charged to                      : s1001
+
+  Estimated SBUs                  : 0
+
+  Total Mem Requested / Allocated : 60.00G / 60.00G
+  Max Real Mem Used (on any node) : 0.00G
+  Max Pct Memory Used             : 0.00%
+
+  Walltime Requested              : 01:00:00
+  Walltime Used                   : 00:00:34
+  Pct Walltime Used               : .94%
+
+  CPUs Requested / Allocated      : 4 / 4
+  Total CPU-Time Allocated        : 00:02:16 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 00:12.820 of 00:02:16
+  System CPU                      : 00:02.772 of 00:02:16
+  Pct CPU Utilization             : 10.29%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

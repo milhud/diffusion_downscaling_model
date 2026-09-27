@@ -1,0 +1,199 @@
+--- Inference plots incl. precipitation (scan 150, Target|ERA5|DRN|Ens|Error) ---
+[Data] Using cached data from /discover/nobackup/sduan/.data
+[Data] Skipped 63 fully-NaN days (from nan_days.json)
+  Scanned 1/150  RMSE=0.1967
+  Scanned 2/150  RMSE=0.1401
+  Scanned 3/150  RMSE=0.1268
+  Scanned 4/150  RMSE=0.0947
+  Scanned 5/150  RMSE=0.1521
+  Scanned 6/150  RMSE=0.1111
+  Scanned 7/150  RMSE=0.1506
+  Scanned 8/150  RMSE=0.1351
+  Scanned 9/150  RMSE=0.0891
+  Scanned 10/150  RMSE=0.1952
+  Scanned 11/150  RMSE=0.3193
+  Scanned 12/150  RMSE=0.2785
+  Scanned 13/150  RMSE=0.2076
+  Scanned 14/150  RMSE=0.1104
+  Scanned 15/150  RMSE=0.1266
+  Scanned 16/150  RMSE=0.1697
+  Scanned 17/150  RMSE=0.1739
+  Scanned 18/150  RMSE=0.2758
+  Scanned 19/150  RMSE=0.2754
+  Scanned 20/150  RMSE=0.1265
+  Scanned 21/150  RMSE=0.3918
+  Scanned 22/150  RMSE=0.2420
+  Scanned 23/150  RMSE=0.1804
+  Scanned 24/150  RMSE=0.1247
+  Scanned 25/150  RMSE=0.2671
+  Scanned 26/150  RMSE=0.1439
+  Scanned 27/150  RMSE=0.2209
+  Scanned 28/150  RMSE=0.1453
+  Scanned 29/150  RMSE=0.2136
+  Scanned 30/150  RMSE=0.1164
+  Scanned 31/150  RMSE=0.1845
+  Scanned 32/150  RMSE=0.1112
+  Scanned 33/150  RMSE=0.2454
+  Scanned 34/150  RMSE=0.2272
+  Scanned 35/150  RMSE=0.2854
+  Scanned 36/150  RMSE=0.1822
+  Scanned 37/150  RMSE=0.2208
+  Scanned 38/150  RMSE=0.2483
+  Scanned 39/150  RMSE=0.2287
+  Scanned 40/150  RMSE=0.1277
+  Scanned 41/150  RMSE=0.2219
+  Scanned 42/150  RMSE=0.1947
+  Scanned 43/150  RMSE=0.1501
+  Scanned 44/150  RMSE=0.1751
+  Scanned 45/150  RMSE=0.1881
+  Scanned 46/150  RMSE=0.2441
+  Scanned 47/150  RMSE=0.3297
+  Scanned 48/150  RMSE=0.2584
+  Scanned 49/150  RMSE=0.1855
+  Scanned 50/150  RMSE=0.2714
+  Scanned 51/150  RMSE=0.2307
+  Scanned 52/150  RMSE=0.3652
+  Scanned 53/150  RMSE=0.2133
+  Scanned 54/150  RMSE=0.2568
+  Scanned 55/150  RMSE=0.2234
+  Scanned 56/150  RMSE=0.2175
+  Scanned 57/150  RMSE=0.2822
+  Scanned 58/150  RMSE=0.1732
+  Scanned 59/150  RMSE=0.3638
+  Scanned 60/150  RMSE=0.2783
+  Scanned 61/150  RMSE=0.3182
+  Scanned 62/150  RMSE=0.1533
+  Scanned 63/150  RMSE=0.2839
+  Scanned 64/150  RMSE=0.2032
+  Scanned 65/150  RMSE=0.1993
+  Scanned 66/150  RMSE=0.1553
+  Scanned 67/150  RMSE=0.1134
+  Scanned 68/150  RMSE=0.1530
+  Scanned 69/150  RMSE=0.2648
+  Scanned 70/150  RMSE=0.4554
+  Scanned 71/150  RMSE=0.3950
+  Scanned 72/150  RMSE=0.1643
+  Scanned 73/150  RMSE=0.1288
+  Scanned 74/150  RMSE=0.2332
+  Scanned 75/150  RMSE=0.2349
+  Scanned 76/150  RMSE=0.2022
+  Scanned 77/150  RMSE=0.3370
+  Scanned 78/150  RMSE=0.4135
+  Scanned 79/150  RMSE=0.2786
+  Scanned 80/150  RMSE=0.1012
+  Scanned 81/150  RMSE=0.1423
+  Scanned 82/150  RMSE=0.1515
+  Scanned 83/150  RMSE=0.2414
+  Scanned 84/150  RMSE=0.2179
+  Scanned 85/150  RMSE=0.2558
+  Scanned 86/150  RMSE=0.2160
+  Scanned 87/150  RMSE=0.3339
+  Scanned 88/150  RMSE=0.2797
+  Scanned 89/150  RMSE=0.2932
+  Scanned 90/150  RMSE=0.1342
+  Scanned 91/150  RMSE=0.3124
+  Scanned 92/150  RMSE=0.1298
+  Scanned 93/150  RMSE=0.1352
+  Scanned 94/150  RMSE=0.2716
+  Scanned 95/150  RMSE=0.1141
+  Scanned 96/150  RMSE=0.3303
+  Scanned 97/150  RMSE=0.3101
+  Scanned 98/150  RMSE=0.1724
+  Scanned 99/150  RMSE=0.1189
+  Scanned 100/150  RMSE=0.2014
+  Scanned 101/150  RMSE=0.1756
+  Scanned 102/150  RMSE=0.1545
+  Scanned 103/150  RMSE=0.3809
+  Scanned 104/150  RMSE=0.4487
+  Scanned 105/150  RMSE=0.1844
+  Scanned 106/150  RMSE=0.1199
+  Scanned 107/150  RMSE=0.3320
+  Scanned 108/150  RMSE=0.3133
+  Scanned 109/150  RMSE=0.1352
+  Scanned 110/150  RMSE=0.2002
+  Scanned 111/150  RMSE=0.2808
+  Scanned 112/150  RMSE=0.1005
+  Scanned 113/150  RMSE=0.2177
+  Scanned 114/150  RMSE=0.2979
+  Scanned 115/150  RMSE=0.3397
+  Scanned 116/150  RMSE=0.2825
+  Scanned 117/150  RMSE=0.1164
+  Scanned 118/150  RMSE=0.0947
+  Scanned 119/150  RMSE=0.3275
+  Scanned 120/150  RMSE=0.3037
+  Scanned 121/150  RMSE=0.1984
+  Scanned 122/150  RMSE=0.3636
+  Scanned 123/150  RMSE=0.1344
+  Scanned 124/150  RMSE=0.4249
+  Scanned 125/150  RMSE=0.4456
+  Scanned 126/150  RMSE=0.2134
+  Scanned 127/150  RMSE=0.2610
+  Scanned 128/150  RMSE=0.1479
+  Scanned 129/150  RMSE=0.2229
+  Scanned 130/150  RMSE=0.3452
+  Scanned 131/150  RMSE=0.2944
+  Scanned 132/150  RMSE=0.1865
+  Scanned 133/150  RMSE=0.3470
+  Scanned 134/150  RMSE=0.3287
+  Scanned 135/150  RMSE=0.3730
+  Scanned 136/150  RMSE=0.2284
+  Scanned 137/150  RMSE=0.2274
+  Scanned 138/150  RMSE=0.3170
+  Scanned 139/150  RMSE=0.5397
+  Scanned 140/150  RMSE=0.4354
+  Scanned 141/150  RMSE=0.1856
+  Scanned 142/150  RMSE=0.5776
+  Scanned 143/150  RMSE=0.2448
+  Scanned 144/150  RMSE=0.4886
+  Scanned 145/150  RMSE=0.4039
+  Scanned 146/150  RMSE=0.5420
+  Scanned 147/150  RMSE=0.3827
+  Scanned 148/150  RMSE=0.4621
+  Scanned 149/150  RMSE=0.1822
+  Scanned 150/150  RMSE=0.4470
+
+[QuickInference] Best 6 patches (lowest RMSE):
+  rank 1: RMSE=0.0891
+  rank 2: RMSE=0.0947
+  rank 3: RMSE=0.0947
+  rank 4: RMSE=0.1005
+  rank 5: RMSE=0.1012
+  rank 6: RMSE=0.1104
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_precip/sample_01.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_precip/sample_02.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_precip/sample_03.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_precip/sample_04.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_precip/sample_05.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_precip/sample_06.png
+
+[QuickInference] 6 samples saved to /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_precip/
+Done: Tue 25 Aug 2026 11:21:08 PM EDT
+_________________________________________________________________________
+Job Resource Usage Summary for 58072786
+
+  Job Ended                       : Tue Aug 25 23:21:09 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa008
+  Charged to                      : s1001
+
+  Estimated SBUs                  : 10.90
+
+  Total Mem Requested / Allocated : 498.04G / G
+  Max Real Mem Used (on any node) : 15.83G
+  Max Pct Memory Used             : %
+
+  Walltime Requested              : 01:00:00
+  Walltime Used                   : 00:12:32
+  Pct Walltime Used               : 20.88%
+
+  CPUs Requested / Allocated      : 1 / 12
+  Total CPU-Time Allocated        : 02:30:24 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 11:14.052 of 02:30:24
+  System CPU                      : 00:13.677 of 02:30:24
+  Pct CPU Utilization             : 7.61%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

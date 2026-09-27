@@ -1,0 +1,36 @@
+stage 1: loaded 285 tensors from epoch 15
+stage 2: loaded 285 tensors from epoch 15
+stage 3: loaded 285 tensors from epoch 20
+2019 {'era5': 1.87, 's1': 8.41, 's2': 8.28, 's3': 12.77} (RMSE K vs CONUS404 on MRPD's own centre crop, 12 days)
+2020 {'era5': 1.96, 's1': 6.97, 's2': 7.05, 's3': 10.6} (RMSE K vs CONUS404 on MRPD's own centre crop, 12 days)
+_________________________________________________________________________
+Job Resource Usage Summary for 58549100
+
+  Job Pending                     : 00:00:01
+  Job Started                     : Thu Sep 24 20:11:28 EDT 2026
+  Job Ended                       : Thu Sep 24 20:11:52 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa003
+  Charged to                      : s1001
+
+  Estimated SBUs                  : 0
+
+  Total Mem Requested / Allocated : 60.00G / 60.00G
+  Max Real Mem Used (on any node) : 0.00G
+  Max Pct Memory Used             : 0.00%
+
+  Walltime Requested              : 01:00:00
+  Walltime Used                   : 00:00:24
+  Pct Walltime Used               : .66%
+
+  CPUs Requested / Allocated      : 4 / 4
+  Total CPU-Time Allocated        : 00:01:36 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 00:06.250 of 00:01:32
+  System CPU                      : 00:02.615 of 00:01:32
+  Pct CPU Utilization             : 8.69%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

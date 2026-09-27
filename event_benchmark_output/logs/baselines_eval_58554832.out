@@ -1,0 +1,68 @@
+{
+ "ours_latent_fp32_incl_DRN_VAE": {
+  "ms_per_member": 1103.7378311157227,
+  "peak_gb": 2.12174848
+ },
+ "pixel_baseline_fp32": {
+  "ms_per_member": 669.5907115936279,
+  "peak_gb": 2.366453248
+ },
+ "pixel_baseline_bf16": {
+  "ms_per_member": 527.6761054992676,
+  "peak_gb": 2.540294656
+ },
+ "note": "pixel baselines = 41.5M-param U-Net (base 96), no CFG (1 network eval per step); ours = 142M latent U-Net with CFG (2 evals/step). Excludes the DRN for CorrDiff-style (~19 ms)."
+}
+[corrdiff] checkpoint step 29118 val 0.2454 trained 8.0 h
+[corrdiff:Florence] done in 83s
+[corrdiff:Michael] done in 83s
+[corrdiff:CampFire_wind] done in 78s
+[corrdiff:PolarVortex] done in 87s
+[corrdiff:BombCyclone] done in 78s
+[corrdiff:Dorian] done in 82s
+[corrdiff:IowaDerecho] done in 80s
+[corrdiff:Laura] done in 87s
+[corrdiff:LaborDay_heat] done in 78s
+[corrdiff:Sally] done in 83s
+[r2d2] checkpoint step 29118 val 0.1451 trained 8.0 h
+[r2d2:Florence] done in 82s
+[r2d2:Michael] done in 80s
+[r2d2:CampFire_wind] done in 76s
+[r2d2:PolarVortex] done in 77s
+[r2d2:BombCyclone] done in 83s
+[r2d2:Dorian] done in 80s
+[r2d2:IowaDerecho] done in 80s
+[r2d2:Laura] done in 79s
+[r2d2:LaborDay_heat] done in 76s
+[r2d2:Sally] done in 80s
+_________________________________________________________________________
+Job Resource Usage Summary for 58554832
+
+  Job Pending                     : 00:00:00
+  Job Started                     : Fri Sep 25 05:00:53 EDT 2026
+  Job Ended                       : Fri Sep 25 05:29:36 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa003
+  Charged to                      : s1001
+
+  Estimated SBUs                  : .33
+
+  Total Mem Requested / Allocated : 80.00G / 80.00G
+  Max Real Mem Used (on any node) : 2.26G
+  Max Pct Memory Used             : 2.82%
+
+  Walltime Requested              : 03:00:00
+  Walltime Used                   : 00:28:42
+  Pct Walltime Used               : 15.94%
+
+  CPUs Requested / Allocated      : 8 / 8
+  Total CPU-Time Allocated        : 03:49:36 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 26:27.694 of 03:49:36
+  System CPU                      : 00:13.646 of 03:49:36
+  Pct CPU Utilization             : 11.61%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

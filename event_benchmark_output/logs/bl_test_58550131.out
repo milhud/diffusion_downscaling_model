@@ -1,0 +1,50 @@
+[corrdiff] checkpoint step 2000 val 0.4207 trained 0.3 h
+[corrdiff:Michael] done in 51s
+[r2d2] checkpoint step 2000 val 0.3304 trained 0.3 h
+[r2d2:Michael] done in 42s
+{
+ "ours_latent_fp32_incl_DRN_VAE": {
+  "ms_per_member": 1095.9748268127441,
+  "peak_gb": 2.12174848
+ },
+ "pixel_baseline_fp32": {
+  "ms_per_member": 669.1346168518066,
+  "peak_gb": 2.366453248
+ },
+ "pixel_baseline_bf16": {
+  "ms_per_member": 527.6928424835205,
+  "peak_gb": 2.540294656
+ },
+ "note": "pixel baselines = 41.5M-param U-Net (base 96), no CFG (1 network eval per step); ours = 142M latent U-Net with CFG (2 evals/step). Excludes the DRN for CorrDiff-style (~19 ms)."
+}
+_________________________________________________________________________
+Job Resource Usage Summary for 58550131
+
+  Job Pending                     : 00:00:00
+  Job Started                     : Thu Sep 24 21:20:07 EDT 2026
+  Job Ended                       : Thu Sep 24 21:23:37 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa003
+  Charged to                      : s1001
+
+  Estimated SBUs                  : .01
+
+  Total Mem Requested / Allocated : 60.00G / 60.00G
+  Max Real Mem Used (on any node) : 1.73G
+  Max Pct Memory Used             : 2.88%
+
+  Walltime Requested              : 00:40:00
+  Walltime Used                   : 00:03:30
+  Pct Walltime Used               : 8.75%
+
+  CPUs Requested / Allocated      : 6 / 6
+  Total CPU-Time Allocated        : 00:21:00 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 01:50.905 of 00:21:00
+  System CPU                      : 00:06.186 of 00:21:00
+  Pct CPU Utilization             : 9.20%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

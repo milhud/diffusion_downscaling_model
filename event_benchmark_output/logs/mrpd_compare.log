@@ -1,0 +1,6 @@
+ERA5 interp                mean RMSE all=1.851  2019-20=2.034  bias=+0.297
+MRPD s2 (12→4km reg.)      mean RMSE all=11.374  2019-20=11.725  bias=-8.676
+MRPD s3 (final reg.)       mean RMSE all=14.831  2019-20=15.651  bias=-6.606
+DRN (ours)                 mean RMSE all=1.174  2019-20=1.215  bias=-0.016
+Ens mean (ours)            mean RMSE all=1.235  2019-20=1.307  bias=-0.228
+Ens member (ours)          mean RMSE all=1.396  2019-20=1.500  bias=-0.264

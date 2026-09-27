@@ -1,0 +1,288 @@
+[Data] Using cached data from /discover/nobackup/sduan/.data
+[Data] Skipped 63 fully-NaN days (from nan_days.json)
+  1/220  wet_frac=0.024  mean_mm=0.070  rmse=0.1523
+  2/220  wet_frac=0.000  SKIP (too dry)
+  3/220  wet_frac=0.000  SKIP (too dry)
+  4/220  wet_frac=0.011  SKIP (too dry)
+  5/220  wet_frac=0.007  SKIP (too dry)
+  6/220  wet_frac=0.008  SKIP (too dry)
+  7/220  wet_frac=0.072  mean_mm=0.124  rmse=0.1507
+  8/220  wet_frac=0.753  mean_mm=10.493  rmse=0.3047
+  9/220  wet_frac=0.003  SKIP (too dry)
+  10/220  wet_frac=0.414  mean_mm=1.876  rmse=0.2726
+  11/220  wet_frac=0.110  mean_mm=0.285  rmse=0.1908
+  12/220  wet_frac=0.441  mean_mm=8.661  rmse=0.3015
+  13/220  wet_frac=0.082  mean_mm=0.102  rmse=0.1909
+  14/220  wet_frac=0.011  SKIP (too dry)
+  15/220  wet_frac=0.002  SKIP (too dry)
+  16/220  wet_frac=0.449  mean_mm=0.982  rmse=0.2742
+  17/220  wet_frac=0.007  SKIP (too dry)
+  18/220  wet_frac=0.000  SKIP (too dry)
+  19/220  wet_frac=0.022  mean_mm=0.043  rmse=0.1168
+  20/220  wet_frac=0.004  SKIP (too dry)
+  21/220  wet_frac=0.609  mean_mm=0.823  rmse=0.2420
+  22/220  wet_frac=0.632  mean_mm=7.678  rmse=0.3465
+  23/220  wet_frac=0.097  mean_mm=0.168  rmse=0.2068
+  24/220  wet_frac=0.000  SKIP (too dry)
+  25/220  wet_frac=0.017  SKIP (too dry)
+  26/220  wet_frac=0.069  mean_mm=0.121  rmse=0.1396
+  27/220  wet_frac=0.584  mean_mm=2.695  rmse=0.2936
+  28/220  wet_frac=0.518  mean_mm=1.086  rmse=0.2081
+  29/220  wet_frac=0.172  mean_mm=1.567  rmse=0.3342
+  30/220  wet_frac=0.181  mean_mm=0.765  rmse=0.2014
+  31/220  wet_frac=0.096  mean_mm=0.145  rmse=0.1852
+  32/220  wet_frac=0.510  mean_mm=1.478  rmse=0.2266
+  33/220  wet_frac=0.545  mean_mm=2.977  rmse=0.2483
+  34/220  wet_frac=0.269  mean_mm=0.727  rmse=0.2119
+  35/220  wet_frac=0.202  mean_mm=0.679  rmse=0.2389
+  36/220  wet_frac=0.347  mean_mm=1.661  rmse=0.1986
+  37/220  wet_frac=0.284  mean_mm=1.023  rmse=0.2086
+  38/220  wet_frac=0.910  mean_mm=9.056  rmse=0.2411
+  39/220  wet_frac=0.167  mean_mm=0.297  rmse=0.2120
+  40/220  wet_frac=0.478  mean_mm=2.595  rmse=0.2272
+  41/220  wet_frac=0.140  mean_mm=0.221  rmse=0.2102
+  42/220  wet_frac=0.884  mean_mm=6.069  rmse=0.4226
+  43/220  wet_frac=0.174  mean_mm=0.779  rmse=0.2539
+  44/220  wet_frac=0.000  SKIP (too dry)
+  45/220  wet_frac=0.439  mean_mm=1.656  rmse=0.2521
+  46/220  wet_frac=0.285  mean_mm=0.661  rmse=0.2449
+  47/220  wet_frac=0.070  mean_mm=0.103  rmse=0.2140
+  48/220  wet_frac=0.617  mean_mm=2.776  rmse=0.2824
+  49/220  wet_frac=0.076  mean_mm=0.177  rmse=0.1949
+  50/220  wet_frac=0.561  mean_mm=2.014  rmse=0.3654
+  51/220  wet_frac=0.447  mean_mm=1.082  rmse=0.2188
+  52/220  wet_frac=0.725  mean_mm=20.301  rmse=0.3582
+  53/220  wet_frac=0.679  mean_mm=13.032  rmse=0.4178
+  54/220  wet_frac=0.415  mean_mm=1.043  rmse=0.3196
+  55/220  wet_frac=0.778  mean_mm=11.569  rmse=0.3633
+  56/220  wet_frac=0.234  mean_mm=0.529  rmse=0.2302
+  57/220  wet_frac=0.049  mean_mm=0.198  rmse=0.2191
+  58/220  wet_frac=0.021  mean_mm=0.055  rmse=0.1874
+  59/220  wet_frac=0.583  mean_mm=2.290  rmse=0.2991
+  60/220  wet_frac=0.914  mean_mm=17.280  rmse=0.4320
+  61/220  wet_frac=0.000  SKIP (too dry)
+  62/220  wet_frac=0.000  SKIP (too dry)
+  63/220  wet_frac=0.095  mean_mm=0.144  rmse=0.1609
+  64/220  wet_frac=0.034  mean_mm=0.068  rmse=0.1544
+  65/220  wet_frac=0.000  SKIP (too dry)
+  66/220  wet_frac=0.050  mean_mm=0.075  rmse=0.1661
+  67/220  wet_frac=0.096  mean_mm=0.267  rmse=0.1813
+  68/220  wet_frac=0.143  mean_mm=1.106  rmse=0.2274
+  69/220  wet_frac=0.231  mean_mm=0.767  rmse=0.2662
+  70/220  wet_frac=0.266  mean_mm=0.613  rmse=0.2449
+  71/220  wet_frac=0.015  SKIP (too dry)
+  72/220  wet_frac=0.092  mean_mm=0.163  rmse=0.1578
+  73/220  wet_frac=0.718  mean_mm=6.615  rmse=0.3662
+  74/220  wet_frac=0.085  mean_mm=0.138  rmse=0.1706
+  75/220  wet_frac=0.498  mean_mm=1.222  rmse=0.2951
+  76/220  wet_frac=0.023  mean_mm=0.056  rmse=0.1587
+  77/220  wet_frac=0.159  mean_mm=0.796  rmse=0.2639
+  78/220  wet_frac=0.195  mean_mm=0.631  rmse=0.2205
+  79/220  wet_frac=0.052  mean_mm=0.088  rmse=0.1227
+  80/220  wet_frac=0.151  mean_mm=0.326  rmse=0.2082
+  81/220  wet_frac=0.041  mean_mm=0.077  rmse=0.1342
+  82/220  wet_frac=0.000  SKIP (too dry)
+  83/220  wet_frac=0.554  mean_mm=10.391  rmse=0.2570
+  84/220  wet_frac=0.266  mean_mm=0.665  rmse=0.3027
+  85/220  wet_frac=0.470  mean_mm=1.428  rmse=0.3754
+  86/220  wet_frac=0.378  mean_mm=1.343  rmse=0.2380
+  87/220  wet_frac=0.439  mean_mm=2.865  rmse=0.3091
+  88/220  wet_frac=0.050  mean_mm=0.122  rmse=0.1477
+  89/220  wet_frac=0.231  mean_mm=0.502  rmse=0.2582
+  90/220  wet_frac=0.014  SKIP (too dry)
+  91/220  wet_frac=0.164  mean_mm=0.643  rmse=0.2165
+  92/220  wet_frac=0.549  mean_mm=3.644  rmse=0.2045
+  93/220  wet_frac=0.333  mean_mm=1.120  rmse=0.2685
+  94/220  wet_frac=0.602  mean_mm=4.838  rmse=0.3829
+  95/220  wet_frac=0.045  mean_mm=0.083  rmse=0.1727
+  96/220  wet_frac=0.333  mean_mm=2.848  rmse=0.3711
+  97/220  wet_frac=0.735  mean_mm=9.836  rmse=0.3256
+  98/220  wet_frac=0.069  mean_mm=0.117  rmse=0.2649
+  99/220  wet_frac=0.004  SKIP (too dry)
+  100/220  wet_frac=0.209  mean_mm=0.702  rmse=0.1919
+  101/220  wet_frac=0.523  mean_mm=0.672  rmse=0.1814
+  102/220  wet_frac=0.025  mean_mm=0.086  rmse=0.1713
+  103/220  wet_frac=0.045  mean_mm=0.102  rmse=0.1757
+  104/220  wet_frac=0.794  mean_mm=20.157  rmse=0.4519
+  105/220  wet_frac=0.943  mean_mm=26.597  rmse=0.3280
+  106/220  wet_frac=0.781  mean_mm=2.791  rmse=0.2825
+  107/220  wet_frac=0.536  mean_mm=2.252  rmse=0.3495
+  108/220  wet_frac=0.000  SKIP (too dry)
+  109/220  wet_frac=0.254  mean_mm=0.794  rmse=0.2022
+  110/220  wet_frac=0.214  mean_mm=0.974  rmse=0.2763
+  111/220  wet_frac=0.442  mean_mm=1.968  rmse=0.3242
+  112/220  wet_frac=0.000  SKIP (too dry)
+  113/220  wet_frac=0.128  mean_mm=1.556  rmse=0.2045
+  114/220  wet_frac=0.508  mean_mm=3.540  rmse=0.2925
+  115/220  wet_frac=0.107  mean_mm=0.625  rmse=0.2402
+  116/220  wet_frac=0.164  mean_mm=1.139  rmse=0.1817
+  117/220  wet_frac=0.000  SKIP (too dry)
+  118/220  wet_frac=0.047  mean_mm=0.082  rmse=0.1780
+  119/220  wet_frac=0.071  mean_mm=0.130  rmse=0.1696
+  120/220  wet_frac=0.051  mean_mm=0.256  rmse=0.2131
+  121/220  wet_frac=0.000  SKIP (too dry)
+  122/220  wet_frac=0.106  mean_mm=0.421  rmse=0.2123
+  123/220  wet_frac=0.146  mean_mm=0.577  rmse=0.2382
+  124/220  wet_frac=0.001  SKIP (too dry)
+  125/220  wet_frac=0.007  SKIP (too dry)
+  126/220  wet_frac=0.229  mean_mm=0.594  rmse=0.2663
+  127/220  wet_frac=0.261  mean_mm=1.148  rmse=0.3873
+  128/220  wet_frac=0.028  mean_mm=0.062  rmse=0.1746
+  129/220  wet_frac=0.148  mean_mm=0.344  rmse=0.2124
+  130/220  wet_frac=0.251  mean_mm=0.984  rmse=0.3144
+  131/220  wet_frac=0.702  mean_mm=6.591  rmse=0.4194
+  132/220  wet_frac=0.119  mean_mm=0.599  rmse=0.2941
+  133/220  wet_frac=0.190  mean_mm=0.379  rmse=0.2510
+  134/220  wet_frac=0.068  mean_mm=0.512  rmse=0.2559
+  135/220  wet_frac=0.336  mean_mm=3.841  rmse=0.5977
+  136/220  wet_frac=0.165  mean_mm=1.526  rmse=0.3448
+  137/220  wet_frac=0.635  mean_mm=6.559  rmse=0.5986
+  138/220  wet_frac=0.812  mean_mm=9.731  rmse=0.4383
+  139/220  wet_frac=0.000  SKIP (too dry)
+  140/220  wet_frac=0.612  mean_mm=6.010  rmse=0.5893
+  141/220  wet_frac=0.713  mean_mm=7.632  rmse=0.4915
+  142/220  wet_frac=0.494  mean_mm=1.841  rmse=0.3946
+  143/220  wet_frac=0.329  mean_mm=3.516  rmse=0.4590
+  144/220  wet_frac=0.628  mean_mm=4.044  rmse=0.4775
+  145/220  wet_frac=0.351  mean_mm=1.581  rmse=0.2657
+  146/220  wet_frac=0.028  mean_mm=0.065  rmse=0.1679
+  147/220  wet_frac=0.099  mean_mm=0.476  rmse=0.2356
+  148/220  wet_frac=0.370  mean_mm=2.842  rmse=0.4732
+  149/220  wet_frac=0.110  mean_mm=0.760  rmse=0.3884
+  150/220  wet_frac=0.816  mean_mm=9.634  rmse=0.5357
+  151/220  wet_frac=0.341  mean_mm=3.929  rmse=0.4991
+  152/220  wet_frac=0.338  mean_mm=3.684  rmse=0.3545
+  153/220  wet_frac=0.000  SKIP (too dry)
+  154/220  wet_frac=0.113  mean_mm=0.458  rmse=0.2669
+  155/220  wet_frac=0.026  mean_mm=0.047  rmse=0.1376
+  156/220  wet_frac=0.000  SKIP (too dry)
+  157/220  wet_frac=0.130  mean_mm=0.735  rmse=0.2940
+  158/220  wet_frac=0.036  mean_mm=0.134  rmse=0.2067
+  159/220  wet_frac=0.251  mean_mm=1.922  rmse=0.4072
+  160/220  wet_frac=0.192  mean_mm=1.310  rmse=0.3466
+  161/220  wet_frac=0.073  mean_mm=0.260  rmse=0.2528
+  162/220  wet_frac=0.342  mean_mm=4.795  rmse=0.5576
+  163/220  wet_frac=0.017  SKIP (too dry)
+  164/220  wet_frac=0.099  mean_mm=0.503  rmse=0.2956
+  165/220  wet_frac=0.129  mean_mm=0.364  rmse=0.2333
+  166/220  wet_frac=0.168  mean_mm=1.232  rmse=0.3883
+  167/220  wet_frac=0.142  mean_mm=0.653  rmse=0.2622
+  168/220  wet_frac=0.453  mean_mm=3.542  rmse=0.3603
+  169/220  wet_frac=0.202  mean_mm=1.359  rmse=0.4034
+  170/220  wet_frac=0.667  mean_mm=6.074  rmse=0.5578
+  171/220  wet_frac=0.010  SKIP (too dry)
+  172/220  wet_frac=0.376  mean_mm=2.006  rmse=0.3946
+  173/220  wet_frac=0.044  mean_mm=0.241  rmse=0.2098
+  174/220  wet_frac=0.213  mean_mm=1.127  rmse=0.3412
+  175/220  wet_frac=0.500  mean_mm=4.081  rmse=0.4691
+  176/220  wet_frac=0.411  mean_mm=4.547  rmse=0.4069
+  177/220  wet_frac=0.053  mean_mm=0.494  rmse=0.2356
+  178/220  wet_frac=0.033  mean_mm=0.097  rmse=0.1538
+  179/220  wet_frac=0.020  mean_mm=0.062  rmse=0.1588
+  180/220  wet_frac=0.402  mean_mm=2.036  rmse=0.4069
+  181/220  wet_frac=0.001  SKIP (too dry)
+  182/220  wet_frac=0.495  mean_mm=2.826  rmse=0.4116
+  183/220  wet_frac=0.049  mean_mm=0.201  rmse=0.2301
+  184/220  wet_frac=0.185  mean_mm=1.251  rmse=0.3725
+  185/220  wet_frac=0.353  mean_mm=2.334  rmse=0.4163
+  186/220  wet_frac=0.365  mean_mm=1.720  rmse=0.4255
+  187/220  wet_frac=0.535  mean_mm=3.978  rmse=0.5959
+  188/220  wet_frac=0.179  mean_mm=0.819  rmse=0.3204
+  189/220  wet_frac=0.477  mean_mm=3.234  rmse=0.5697
+  190/220  wet_frac=0.140  mean_mm=0.328  rmse=0.2175
+  191/220  wet_frac=0.059  mean_mm=0.215  rmse=0.2078
+  192/220  wet_frac=0.318  mean_mm=1.258  rmse=0.3381
+  193/220  wet_frac=0.161  mean_mm=0.940  rmse=0.2754
+  194/220  wet_frac=0.187  mean_mm=1.717  rmse=0.4130
+  195/220  wet_frac=0.071  mean_mm=0.286  rmse=0.2301
+  196/220  wet_frac=0.487  mean_mm=4.595  rmse=0.5776
+  197/220  wet_frac=0.332  mean_mm=1.684  rmse=0.4469
+  198/220  wet_frac=0.749  mean_mm=7.093  rmse=0.4864
+  199/220  wet_frac=0.346  mean_mm=3.367  rmse=0.4812
+  200/220  wet_frac=0.256  mean_mm=1.097  rmse=0.3622
+  201/220  wet_frac=0.664  mean_mm=8.758  rmse=0.5759
+  202/220  wet_frac=0.174  mean_mm=0.716  rmse=0.3202
+  203/220  wet_frac=0.167  mean_mm=1.134  rmse=0.3489
+  204/220  wet_frac=0.897  mean_mm=7.737  rmse=0.4819
+  205/220  wet_frac=0.393  mean_mm=2.685  rmse=0.3697
+  206/220  wet_frac=0.573  mean_mm=3.097  rmse=0.4380
+  207/220  wet_frac=0.402  mean_mm=1.281  rmse=0.3506
+  208/220  wet_frac=0.401  mean_mm=1.753  rmse=0.4081
+  209/220  wet_frac=0.025  mean_mm=0.055  rmse=0.2006
+  210/220  wet_frac=0.131  mean_mm=0.426  rmse=0.2322
+  211/220  wet_frac=0.536  mean_mm=4.668  rmse=0.4416
+  212/220  wet_frac=0.785  mean_mm=11.403  rmse=0.6080
+  213/220  wet_frac=0.068  mean_mm=0.186  rmse=0.2041
+  214/220  wet_frac=0.093  mean_mm=0.470  rmse=0.3039
+  215/220  wet_frac=0.206  mean_mm=0.933  rmse=0.2866
+  216/220  wet_frac=0.180  mean_mm=0.520  rmse=0.3019
+  217/220  wet_frac=0.096  mean_mm=0.200  rmse=0.2328
+  218/220  wet_frac=0.136  mean_mm=0.669  rmse=0.2771
+  219/220  wet_frac=0.634  mean_mm=6.414  rmse=0.5754
+  220/220  wet_frac=0.545  mean_mm=3.914  rmse=0.4721
+
+Top 10 candidates (mixed wet/dry, sorted by RMSE for reference — pick visually, don't just take rank 1):
+  rank 1: wet_frac=0.523 mean_mm=0.672 rmse=0.1814
+  rank 2: wet_frac=0.164 mean_mm=1.139 rmse=0.1817
+  rank 3: wet_frac=0.110 mean_mm=0.285 rmse=0.1908
+  rank 4: wet_frac=0.209 mean_mm=0.702 rmse=0.1919
+  rank 5: wet_frac=0.347 mean_mm=1.661 rmse=0.1986
+  rank 6: wet_frac=0.181 mean_mm=0.765 rmse=0.2014
+  rank 7: wet_frac=0.254 mean_mm=0.794 rmse=0.2022
+  rank 8: wet_frac=0.549 mean_mm=3.644 rmse=0.2045
+  rank 9: wet_frac=0.128 mean_mm=1.556 rmse=0.2045
+  rank 10: wet_frac=0.518 mean_mm=1.086 rmse=0.2081
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_01.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_01.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_02.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_02.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_03.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_03.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_04.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_04.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_05.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_05.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_06.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_06.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_07.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_07.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_08.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_08.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_09.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_09.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/sample_10.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/sample_10.png
+
+Saved main (T2) to /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_main_temp/, appendix (['TD2', 'U10', 'V10', 'PSFC', 'PREC_ACC_NC']) to /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/candidates_appendix_5var/
+Done: Fri 28 Aug 2026 02:05:48 PM EDT
+_________________________________________________________________________
+Job Resource Usage Summary for 58116551
+
+  Job Pending                     : 00:00:18
+  Job Started                     : Fri Aug 28 13:50:44 EDT 2026
+  Job Ended                       : Fri Aug 28 14:05:48 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa013
+  Charged to                      : s1001
+
+  Estimated SBUs                  : 13.11
+
+  Total Mem Requested / Allocated : 498.04G / G
+  Max Real Mem Used (on any node) : 20.17G
+  Max Pct Memory Used             : %
+
+  Walltime Requested              : 00:45:00
+  Walltime Used                   : 00:15:04
+  Pct Walltime Used               : 33.48%
+
+  CPUs Requested / Allocated      : 1 / 12
+  Total CPU-Time Allocated        : 03:00:48 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 14:14.356 of 03:00:48
+  System CPU                      : 00:18.116 of 03:00:48
+  Pct CPU Utilization             : 8.03%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

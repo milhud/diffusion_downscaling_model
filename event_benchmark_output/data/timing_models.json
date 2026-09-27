@@ -1,0 +1,15 @@
+{
+ "ours_latent_fp32_incl_DRN_VAE": {
+  "ms_per_member": 1103.7378311157227,
+  "peak_gb": 2.12174848
+ },
+ "pixel_baseline_fp32": {
+  "ms_per_member": 669.5907115936279,
+  "peak_gb": 2.366453248
+ },
+ "pixel_baseline_bf16": {
+  "ms_per_member": 527.6761054992676,
+  "peak_gb": 2.540294656
+ },
+ "note": "pixel baselines = 41.5M-param U-Net (base 96), no CFG (1 network eval per step); ours = 142M latent U-Net with CFG (2 evals/step). Excludes the DRN for CorrDiff-style (~19 ms)."
+}

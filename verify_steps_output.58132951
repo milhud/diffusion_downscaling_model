@@ -1,0 +1,48 @@
+[Data] Using cached data from /discover/nobackup/sduan/.data
+[Data] Skipped 63 fully-NaN days (from nan_days.json)
+[StepAblation] Testing steps: [2, 4, 8, 16, 32], 20 batches
+  [5/20]
+  [10/20]
+  [15/20]
+  [20/20]
+
+  Steps | RMSE   | CRPS
+  ------+--------+------
+      2 | 0.1843 | 0.1267
+      4 | 0.1120 | 0.0758
+      8 | 0.1009 | 0.0676
+     16 | 0.0988 | 0.0666
+     32 | 0.0992 | 0.0668
+
+Saved to results/step_ablation_verify/
+_________________________________________________________________________
+Job Resource Usage Summary for 58132951
+
+  Job Pending                     : 00:39:25
+  Job Started                     : Sat Aug 29 16:41:47 EDT 2026
+  Job Ended                       : Sat Aug 29 16:46:35 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa013
+  Charged to                      : s1001
+
+  Estimated SBUs                  : 4.17
+
+  Total Mem Requested / Allocated : 498.04G / G
+  Max Real Mem Used (on any node) : 11.93G
+  Max Pct Memory Used             : %
+
+  Walltime Requested              : 00:30:00
+  Walltime Used                   : 00:04:48
+  Pct Walltime Used               : 16.00%
+
+  CPUs Requested / Allocated      : 1 / 12
+  Total CPU-Time Allocated        : 00:57:36 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 03:03.274 of 00:57:36
+  System CPU                      : 00:09.895 of 00:57:36
+  Pct CPU Utilization             : 5.55%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+

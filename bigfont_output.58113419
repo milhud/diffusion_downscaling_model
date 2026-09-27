@@ -1,0 +1,91 @@
+Rerunning 3var plots (T2, U10, PREC_ACC_NC) w/ larger fonts, scan 40, keep 6 lowest-RMSE...
+[Data] Using cached data from /discover/nobackup/sduan/.data
+[Data] Skipped 63 fully-NaN days (from nan_days.json)
+  Scanned 1/40  RMSE=0.1637
+  Scanned 2/40  RMSE=0.1533
+  Scanned 3/40  RMSE=0.1400
+  Scanned 4/40  RMSE=0.1172
+  Scanned 5/40  RMSE=0.1814
+  Scanned 6/40  RMSE=0.1197
+  Scanned 7/40  RMSE=0.2899
+  Scanned 8/40  RMSE=0.3116
+  Scanned 9/40  RMSE=0.1386
+  Scanned 10/40  RMSE=0.3293
+  Scanned 11/40  RMSE=0.2454
+  Scanned 12/40  RMSE=0.1499
+  Scanned 13/40  RMSE=0.1825
+  Scanned 14/40  RMSE=0.2037
+  Scanned 15/40  RMSE=0.2634
+  Scanned 16/40  RMSE=0.1606
+  Scanned 17/40  RMSE=0.1650
+  Scanned 18/40  RMSE=0.1428
+  Scanned 19/40  RMSE=0.1747
+  Scanned 20/40  RMSE=0.2678
+  Scanned 21/40  RMSE=0.2002
+  Scanned 22/40  RMSE=0.2194
+  Scanned 23/40  RMSE=0.1203
+  Scanned 24/40  RMSE=0.2119
+  Scanned 25/40  RMSE=0.2441
+  Scanned 26/40  RMSE=0.1491
+  Scanned 27/40  RMSE=0.1325
+  Scanned 28/40  RMSE=0.2517
+  Scanned 29/40  RMSE=0.1223
+  Scanned 30/40  RMSE=0.1956
+  Scanned 31/40  RMSE=0.1386
+  Scanned 32/40  RMSE=0.2005
+  Scanned 33/40  RMSE=0.1533
+  Scanned 34/40  RMSE=0.1299
+  Scanned 35/40  RMSE=0.2543
+  Scanned 36/40  RMSE=0.1303
+  Scanned 37/40  RMSE=0.2943
+  Scanned 38/40  RMSE=0.1813
+  Scanned 39/40  RMSE=0.2376
+  Scanned 40/40  RMSE=0.1343
+
+[QuickInference] Best 6 patches (lowest RMSE):
+  rank 1: RMSE=0.1172
+  rank 2: RMSE=0.1197
+  rank 3: RMSE=0.1203
+  rank 4: RMSE=0.1223
+  rank 5: RMSE=0.1299
+  rank 6: RMSE=0.1303
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_3var/sample_01.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_3var/sample_02.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_3var/sample_03.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_3var/sample_04.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_3var/sample_05.png
+Saved /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_3var/sample_06.png
+
+[QuickInference] 6 samples saved to /gpfsm/dnb33/hpmille1/diffusion_paper_external/results/inference_plots_3var/
+Done: Fri 28 Aug 2026 09:40:46 AM EDT
+_________________________________________________________________________
+Job Resource Usage Summary for 58113419
+
+  Job Pending                     : 00:00:01
+  Job Started                     : Fri Aug 28 09:36:04 EDT 2026
+  Job Ended                       : Fri Aug 28 09:40:47 EDT 2026
+
+  Partition                       : gpu_a100
+  Head Node                       : warpa003
+  Charged to                      : s1001
+
+  Estimated SBUs                  : 4.08
+
+  Total Mem Requested / Allocated : 498.04G / G
+  Max Real Mem Used (on any node) : 9.15G
+  Max Pct Memory Used             : %
+
+  Walltime Requested              : 00:30:00
+  Walltime Used                   : 00:04:42
+  Pct Walltime Used               : 15.66%
+
+  CPUs Requested / Allocated      : 1 / 12
+  Total CPU-Time Allocated        : 00:56:24 (Walltime Used * #CPUs)
+
+  CPU Utilization of __whole job__:
+  User CPU                        : 03:11.589 of 00:56:24
+  System CPU                      : 00:07.020 of 00:56:24
+  Pct CPU Utilization             : 5.85%
+  (Whole-job utilization data may be inaccurate; prefix your most important command with 'srun' for best insight.)
+_________________________________________________________________________
+
