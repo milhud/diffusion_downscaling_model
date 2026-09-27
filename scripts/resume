@@ -1,0 +1,50 @@
+#!/bin/bash
+# ============================================================================
+# Resume training for a specific stage using the auto-resubmit daemon.
+#
+# Usage:
+#   ./scripts/resume drn
+#   ./scripts/resume vae
+#   ./scripts/resume diffusion
+#
+# Kills any existing daemon, then starts a new one with --resume.
+# Logs go to train_loop.log. Stop with: kill $(cat .train_daemon.pid)
+# ============================================================================
+
+cd /gpfsm/dnb33/hpmille1/diffusion_downscaling_model
+
+STAGE="${1:-}"
+if [[ -z "$STAGE" ]]; then
+    echo "Usage: ./scripts/resume <drn|vae|diffusion>"
+    exit 1
+fi
+
+if [[ "$STAGE" != "drn" && "$STAGE" != "vae" && "$STAGE" != "diffusion" ]]; then
+    echo "ERROR: stage must be drn, vae, or diffusion"
+    exit 1
+fi
+
+# Kill existing daemon if running
+if [[ -f .train_daemon.pid ]]; then
+    OLD_PID=$(cat .train_daemon.pid)
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+        echo "Stopping existing daemon (PID $OLD_PID)..."
+        kill "$OLD_PID"
+    fi
+    rm -f .train_daemon.pid
+fi
+
+CACHE_DIR="/discover/nobackup/sduan/.data"
+
+echo "Resuming $STAGE training..."
+nohup bash scripts/train_until_done.sh \
+    --stage "$STAGE" \
+    --cache_dir "$CACHE_DIR" \
+    >> train_loop.log 2>&1 &
+
+DAEMON_PID=$!
+echo "$DAEMON_PID" > .train_daemon.pid
+disown "$DAEMON_PID"
+
+echo "Daemon started (PID $DAEMON_PID)"
+echo "Monitor: tail -f train_loop.log"

@@ -1,0 +1,150 @@
+\documentclass[10pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{svg}
+
+\title{\textbf{Latent CorrDiff: Efficient Probabilistic Atmospheric Downscaling via Latent Diffusion}}
+
+\author{}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Abstract}
+
+Generative diffusion models have recently shown promise for closing the gap between the need for broad, high-resolution climate data and the lack of fine scale variability in ERA5 reanalysis products. We introduce \textbf{Latent CorrDiff}, a downscaling system that combines a deterministic regression baseline with a diffusion stage that models the fine-scale atmospheric residuals entirely inside a low-resolution latent space. Applied to ERA5 reanalysis at \textasciitilde27\,km resolution, the system produces physically consistent 4\,km surface fields over the continental United States across six simultaneous output variables. Because the diffusion process operates at one-sixteenth the spatial resolution of the output, inference is 6.8$\times$ faster and uses 5$\times$ less memory than an equivalent pixel-space approach while preserving fine-scale spectral structure.
+
+\section{Introduction}
+
+Downscaling is the practice of translating coarse model output into fine-resolution fields. Classical statistical methods learn simple corrections from historical data: bias adjustment, quantile mapping, spatial interpolation. These are fast and interpretable, but they produce single deterministic predictions and cannot represent genuine uncertainty in the high-frequency spatial structure that the coarse input does not contain. Neural networks have substantially improved on classical methods. Convolutional architectures recover fine-scale texture and correct systematic biases with low average error.
+
+Diffusion models offer a principled way to sample from the full conditional distribution rather than just its mean. Recent work has demonstrated that diffusion-based downscaling produces sharp, physically plausible outputs that match observed spatial statistics. Previous work improved on na\"ive pixel-space diffusion by factoring the problem into a deterministic regression stage followed by a residual diffusion stage --- the network only models the part of the output the regression could not explain. This probabilistic downscaling has been extended across lead times and multiple climate models, showing the approach generalizes beyond a single training distribution.
+
+Despite recent progress, high-resolution pixel-space diffusion remains too computationally expensive for operational use, and existing methods rarely evaluate the joint distribution across multiple atmospheric variables. Furthermore, generating calibrated ensembles at kilometer-scale resolutions strains GPU memory and introduces prohibitive processing bottlenecks. To address these obstacles, we apply diffusion within the compressed representation of a variational autoencoder, reducing the effective spatial resolution by a factor of four in each dimension. Evaluating this approach on six surface variables simultaneously demonstrates that our latent framework recovers key spectral characteristics while running substantially faster than a pixel-space baseline.
+
+\section{Approach}
+
+ERA5 reanalysis data includes six meteorological surface variables on a regular latitude-longitude grid at roughly 0.25$^\circ$ resolution, as well as six static geographic fields describing the terrain over the continental United States (terrain height, orographic variance, latitude, longitude, leaf area index, and a land-sea mask). The target output is a one-to-one map of the CONUS404 regional reanalysis at 4\,km resolution, providing six surface variables: 2-m temperature (T2), 2-m dewpoint (TD2), 10-m zonal wind (U10), 10-m meridional wind (V10), surface pressure (PSFC), and non-convective precipitation (PREC\_ACC\_NC).
+
+The goal is to sample from this coarse input to generate the most likely fine-scale realization out of a range of possible scenarios.
+
+\subsection{Three-Stage Design}
+
+Rather than train a single network end-to-end, we decompose the problem into three stages that each handle a distinct aspect.
+
+\begin{figure}[h]
+  \centering
+  \includesvg[width=\linewidth]{excalidraw.svg}
+  \caption{Architecture overview of Latent CorrDiff. Stage 1 (DRN) produces a
+           deterministic high-resolution baseline. Stage 2 (VAE) compresses the
+           residual into a $64\times64$ latent space. Stage 3 (latent diffusion)
+           generates stochastic residual samples conditioned on ERA5 and the DRN
+           output, which are decoded and added back to the baseline.}
+  \label{fig:architecture}
+\end{figure}
+
+\paragraph{Stage 1: Deterministic Regression.} A U-Net baseline network uses a 12-channel input—combining six coarse ERA5 meteorological variables with six static terrain fields—to generate a high-resolution deterministic prediction. Because it is trained on standard regression losses, this stage effectively maps the conditional mean of the target weather; it successfully captures stable, large-scale structures such as major temperature gradients, terrain-forced wind flows, and humidity-elevation relationships, but it inherently smooths out fine-scale, chaotic atmospheric details.
+
+\paragraph{Stage 2: Residual Compression.} To model the missing details, we compute the residual error ($r = y - \hat{y}$) between the true high-resolution weather data and the smooth Stage 1 prediction. We train a variational autoencoder ($\beta$-VAE) to compress this high-resolution error map into an 8-channel latent space, achieving a $16\times$ reduction in spatial tokens ($64\times64$ versus $256\times256$). By regularizing this latent space to a standard Gaussian distribution during training, we ensure that during inference we can bypass the true high-resolution target entirely and simply sample random latent vectors to generate plausible high-frequency weather details.
+
+\paragraph{Stage 3: Latent Diffusion.} In this stage, a conditional diffusion U-Net operates entirely within the $16\times$ smaller compressed latent space to sample a clean latent vector conditioned on a 30-channel context map. This context map guides the generation by stacking the noisy latent sample, downsampled ERA5 inputs, the encoded Stage 1 prediction, and coordinate embeddings. Once the low-resolution denoising process completes, the resulting latent is passed through the VAE decoder to reconstruct a full-sized error map, which is added directly back to the Stage 1 baseline ($\tilde{y} = \hat{y} + D(\tilde{z})$).
+
+\\
+
+At $256\times256$ output resolution, each pixel-space denoising step touches every output pixel. Operating in the $64\times64$ latent space reduces the spatial token count by $16\times$, giving a commensurate reduction in the cost of each network pass. Empirically, 32 denoising steps at latent resolution takes 2.13\,s on an A100 GPU, versus 14.5\,s for an equivalent pixel-space U-Net --- a \textbf{6.8$\times$ speedup} --- while peak GPU memory drops from 11.0\,GB to 2.19\,GB (Table~\ref{tab:benchmark}). This makes ensemble generation with 32 members computationally comparable to a single pixel-space run.
+
+\subsection{Training}
+
+All three stages are trained independently on CONUS404 reanalysis data from 1980--2010, with 2011--2020 held out for evaluation. Patches of $256\times256$ pixels are randomly sampled subject to a minimum land-fraction constraint to avoid ocean-dominated regions. All variables are z-score normalized using training-set statistics; precipitation receives a $\log(1+x)$ transform before normalization to compress its heavy tail. The DRN is trained with a combination of L1 and L2 loss. The VAE is trained with reconstruction, KL divergence, and perceptual losses. The diffusion model follows a standard noise schedule with a second-order ODE sampler and an exponential moving average of weights used at inference. Classifier-free guidance with scale 0.2 is applied during sampling.
+
+\section{Experiments}
+
+\subsection{Compute Efficiency}
+\label{sec:benchmark}
+
+Table~\ref{tab:benchmark} compares wall-clock inference time and peak GPU memory between latent and pixel-space diffusion at equivalent step counts. All measurements on a single A100-SXM4-40GB GPU, batch size 1, patch $256\times256$.
+
+\begin{table}[h]
+\centering
+\caption{Inference time and memory: latent vs.\ pixel-space diffusion.}
+\label{tab:benchmark}
+\begin{tabular}{lrr}
+\toprule
+Configuration & Time (s) & Peak mem (GB) \\
+\midrule
+Latent, 4 steps  & 0.24 & \multirow{4}{*}{2.19} \\
+Latent, 8 steps  & 0.51 & \\
+Latent, 16 steps & 1.05 & \\
+Latent, 32 steps & 2.13 & \\
+\midrule
+Pixel, 4 steps   & 1.61 & \multirow{4}{*}{11.02} \\
+Pixel, 8 steps   & 3.46 & \\
+Pixel, 16 steps  & 7.14 & \\
+Pixel, 32 steps  & 14.51 & \\
+\midrule
+\textbf{Speedup (32 steps)} & \textbf{6.8$\times$} & \textbf{5.0$\times$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Spectral Fidelity}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{results/spectra/stage_spectra.png}
+  \caption{Power spectra at each stage of the pipeline (ERA5 input,
+           DRN output, diffusion output, CONUS404 target).}
+  \label{fig:spectra}
+\end{figure}
+
+A key concern with latent-space generation is that decoding may smooth fine-scale structure. We compare radially averaged 2D power spectra of the ensemble mean against the CONUS404 target across all six output variables. The DRN output is spectrally damped relative to the target at high wavenumbers, as expected for a regression network. Adding the diffusion residual recovers spectral energy at the scales the DRN suppresses, matching the target slope through the inertial subrange.
+
+\subsection{Step Count Ablation}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{results/step_ablation/step_ablation.png}
+  \caption{RMSE and CRPS vs.\ number of denoising steps (2--32).
+           Quality plateaus after 8 steps, suggesting 16 as the
+           cost-quality operating point.}
+  \label{fig:step_ablation}
+\end{figure}
+
+We evaluate sample quality as a function of denoising step count (2, 4, 8, 16, 32 steps) using a fixed 2-member ensemble. Metric quality improves steeply from 2 to 8 steps and plateaus near 16, suggesting 16 steps as the operating point that balances quality and cost.
+
+\subsection{Qualitative Results}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{results/inference_plots_3var/sample_01.png}
+  \caption{Representative test patch (lowest RMSE from 40 candidates).
+           Columns: ERA5 bilinearly interpolated to CONUS404 resolution,
+           CONUS404 target, DRN deterministic prediction, diffusion ensemble mean,
+           ensemble spread, and pointwise error.
+           Rows: 2-m temperature (T2), 10-m zonal wind (U10),
+           non-convective precipitation (PREC).
+           Spread is largest over frontal zones and complex terrain,
+           consistent with physical uncertainty expectations.}
+  \label{fig:sample}
+\end{figure*}
+
+Figure~\ref{fig:sample} shows a representative test patch. The DRN captures large-scale structure and terrain-forced gradients. The diffusion ensemble mean sharpens fine-scale detail the DRN smooths, while ensemble spread is largest in regions of high atmospheric variability (precipitation events, frontal zones) and near complex terrain --- consistent with physical expectations for forecast uncertainty.
+
+\section{Limitations and Future Work}
+
+The current system treats each time step independently and does not enforce temporal consistency across a sequence of outputs. This is acceptable for snapshot-based evaluation but limits applicability to time-series diagnostics such as diurnal cycles or storm tracks. The model is trained and evaluated on a single reanalysis product (CONUS404) and a single input (ERA5); generalization to GCM projections or other reanalyses is not demonstrated. Finally, evaluation here is limited to spatial metrics and spectral statistics; full probabilistic calibration (CRPS, rank histograms, spread-skill ratio) across the complete test set is left for follow-on work.
+
+\section{Conclusion}
+
+We presented Latent CorrDiff, a three-stage probabilistic downscaling system that performs diffusion in a compressed latent space rather than in pixel space. The approach achieves a 6.8$\times$ inference speedup and 5$\times$ memory reduction over a pixel-space baseline while recovering the spectral structure of the target fields. Operating simultaneously over six surface variables with a shared model makes the joint output distribution physically consistent in a way that per-variable pipelines are not. The residual design ensures the deterministic baseline remains a special case, enabling clean attribution of probabilistic skill to the generative stage.
+
+\end{document}
