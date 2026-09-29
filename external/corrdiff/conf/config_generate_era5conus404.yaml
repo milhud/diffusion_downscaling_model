@@ -1,0 +1,39 @@
+# CorrDiff inference/generation config for the ERA5->CONUS404 baseline.
+# Fill in generation.times and the two checkpoint paths after training
+# finishes, then run (from physicsnemo_src/examples/weather/corrdiff/):
+#   python generate.py --config-path=../../../../../conf --config-name=config_generate_era5conus404
+
+hydra:
+    job:
+        chdir: false
+        name: era5conus404_generate
+    run:
+        dir: ./external/corrdiff/output/${hydra:job.name}
+    searchpath:
+        - pkg://conf/base
+
+defaults:
+    - generation: non_patched
+
+dataset:
+    type: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/dataset.py::Era5Conus404Dataset
+    cache_dir: /discover/nobackup/sduan/.data
+    norm_stats_path: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/norm_stats.npz
+    years: [2018, 2019, 2020]
+    input_variables: [t2m, d2m, u10, v10, sp, tp]
+    output_variables: [T2, TD2, U10, V10, PSFC, PREC_ACC_NC]
+    invariant_variables: [terrain, orog_var, lat, lon, lai, lsm]
+    crop_size: 448
+    min_land_frac: 0.8
+
+generation:
+    num_ensembles: 16
+    seed_batch_size: 4
+    times:
+        - "2018-001"  # placeholder -- our dataset.time() returns "{year}-day{d:03d}"
+    io:
+        res_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_diffusion/EDMPrecondSuperResolution.0.<STEP>.mdlus
+        reg_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_regression/UNet.0.<STEP>.mdlus
+
+wandb:
+    mode: disabled

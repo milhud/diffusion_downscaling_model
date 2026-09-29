@@ -32,3 +32,14 @@ pipeline_test_output.*
 # src/evaluation/event_predict.py; over GitHub's 100MB file limit)
 event_benchmark_output/data/pred_*.npz
 event_benchmark_output/data/predb_*.npz
+
+# CorrDiff baseline: venv, cloned physicsnemo repo, and checkpoints are
+# large/regenerable (see external/corrdiff/README.md for setup). Only the
+# adapter code (dataset.py, conf/, train_wrapper.py) is tracked.
+external/corrdiff/venv/
+external/corrdiff/physicsnemo_src/
+external/corrdiff/checkpoints_regression/
+external/corrdiff/checkpoints_diffusion/
+external/corrdiff/__pycache__/
+event_benchmark_output/logs/corrdiff_smoke_*.out
+event_benchmark_output/logs/corrdiff_smoke_*.err
