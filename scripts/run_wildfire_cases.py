@@ -111,7 +111,10 @@ def run_case(name, date_str, lat, lon, note, models, stats, static, land, lat_gr
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     safe = name.split(" (")[0].replace(" ", "_")
 
-    fig, axes = plt.subplots(len(PLOT_VARS), 4, figsize=(15, 3.6 * len(PLOT_VARS) + 0.6), dpi=140)
+    BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
+
+    fig, axes = plt.subplots(len(PLOT_VARS), 5, figsize=(18, 3.6 * len(PLOT_VARS) + 0.6), dpi=140,
+                              gridspec_kw={"width_ratios": [1, 1, 1, 1, 0.8]})
     if len(PLOT_VARS) == 1:
         axes = axes[None, :]
     rmse_lines = []
@@ -119,17 +122,19 @@ def run_case(name, date_str, lat, lon, note, models, stats, static, land, lat_gr
         ci = CONUS404_VARS.index(var)
         ei = ERA5_VARS.index({"T2": "t2m", "PREC_ACC_NC": "tp"}[var])
         truth_field = truth_phys[ci]
+        era5_field = era5_phys[ei]
         drn_field = drn_phys[ci]
         ens_field = ens_phys[ci]
+        rmse_era5 = float(np.sqrt(np.mean((era5_field - truth_field) ** 2)))
         rmse_drn = float(np.sqrt(np.mean((drn_field - truth_field) ** 2)))
         rmse_ens = float(np.sqrt(np.mean((ens_field - truth_field) ** 2)))
         unit = "K" if var == "T2" else "mm"
         rmse_lines.append(
-            f"{var} vs CONUS404 target: DRN RMSE = {rmse_drn:.2f}{unit}, "
-            f"full pipeline RMSE = {rmse_ens:.2f}{unit}"
+            f"{var} vs CONUS404 target: ERA5 (no downscaling) RMSE = {rmse_era5:.2f}{unit}, "
+            f"DRN RMSE = {rmse_drn:.2f}{unit}, full pipeline RMSE = {rmse_ens:.2f}{unit}"
         )
         panels = [
-            (era5_phys[ei], f"ERA5 input (27km)\n{var}"),
+            (era5_field, f"ERA5 input (27km)\n{var}"),
             (truth_field, f"CONUS404 truth (4km)\n{var}"),
             (drn_field, f"DRN mean prediction\n{var}"),
             (ens_field, f"Full pipeline (DRN+diffusion)\n{var}, 4-member mean"),
@@ -143,9 +148,22 @@ def run_case(name, date_str, lat, lon, note, models, stats, static, land, lat_gr
             ax.set_title(title, fontsize=10)
             ax.axis("off")
             plt.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
+
+        bax = axes[row, 4]
+        labels = ["ERA5\n(no downscale)", "DRN", "Full\npipeline"]
+        vals = [rmse_era5, rmse_drn, rmse_ens]
+        colors = [AQUA, ORANGE, BLUE]
+        bars = bax.bar(labels, vals, color=colors, width=0.6)
+        for b, v in zip(bars, vals):
+            bax.text(b.get_x() + b.get_width() / 2, v, f"{v:.2f}", ha="center", va="bottom", fontsize=9)
+        bax.set_title(f"RMSE vs CONUS404 target\n{var} ({unit})", fontsize=10)
+        bax.set_ylabel(f"RMSE ({unit})")
+        bax.spines[["top", "right"]].set_visible(False)
+        bax.tick_params(axis="x", labelsize=8.5)
+        bax.set_ylim(0, max(vals) * 1.25)
+
     fig.suptitle(f"{name}, {date_str}", fontsize=13, fontweight="bold", y=1.02)
-    fig.tight_layout(rect=[0, 0.05, 1, 1])
-    fig.text(0.5, 0.01, "   |   ".join(rmse_lines), ha="center", va="bottom", fontsize=10)
+    fig.tight_layout()
     fig.savefig(OUT_DIR / f"{safe}.png", bbox_inches="tight")
     plt.close(fig)
     print(f"[done] {name}: wrote {OUT_DIR}/{safe}.png  ({'; '.join(rmse_lines)})")
