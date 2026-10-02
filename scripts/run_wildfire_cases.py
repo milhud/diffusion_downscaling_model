@@ -111,17 +111,28 @@ def run_case(name, date_str, lat, lon, note, models, stats, static, land, lat_gr
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     safe = name.split(" (")[0].replace(" ", "_")
 
-    fig, axes = plt.subplots(len(PLOT_VARS), 4, figsize=(15, 3.6 * len(PLOT_VARS)), dpi=140)
+    fig, axes = plt.subplots(len(PLOT_VARS), 4, figsize=(15, 3.6 * len(PLOT_VARS) + 0.6), dpi=140)
     if len(PLOT_VARS) == 1:
         axes = axes[None, :]
+    rmse_lines = []
     for row, var in enumerate(PLOT_VARS):
         ci = CONUS404_VARS.index(var)
         ei = ERA5_VARS.index({"T2": "t2m", "PREC_ACC_NC": "tp"}[var])
+        truth_field = truth_phys[ci]
+        drn_field = drn_phys[ci]
+        ens_field = ens_phys[ci]
+        rmse_drn = float(np.sqrt(np.mean((drn_field - truth_field) ** 2)))
+        rmse_ens = float(np.sqrt(np.mean((ens_field - truth_field) ** 2)))
+        unit = "K" if var == "T2" else "mm"
+        rmse_lines.append(
+            f"{var} vs CONUS404 target: DRN RMSE = {rmse_drn:.2f}{unit}, "
+            f"full pipeline RMSE = {rmse_ens:.2f}{unit}"
+        )
         panels = [
             (era5_phys[ei], f"ERA5 input (27km)\n{var}"),
-            (truth_phys[ci], f"CONUS404 truth (4km)\n{var}"),
-            (drn_phys[ci], f"DRN mean prediction\n{var}"),
-            (ens_phys[ci], f"Full pipeline (DRN+diffusion)\n{var}, 4-member mean"),
+            (truth_field, f"CONUS404 truth (4km)\n{var}"),
+            (drn_field, f"DRN mean prediction\n{var}"),
+            (ens_field, f"Full pipeline (DRN+diffusion)\n{var}, 4-member mean"),
         ]
         vmin = min(p[0].min() for p in panels)
         vmax = max(p[0].max() for p in panels)
@@ -132,11 +143,12 @@ def run_case(name, date_str, lat, lon, note, models, stats, static, land, lat_gr
             ax.set_title(title, fontsize=10)
             ax.axis("off")
             plt.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
-    fig.suptitle(f"{name}, {date_str}\n{note}", fontsize=13, fontweight="bold", y=1.02)
-    fig.tight_layout()
+    fig.suptitle(f"{name}, {date_str}", fontsize=13, fontweight="bold", y=1.02)
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.text(0.5, 0.01, "   |   ".join(rmse_lines), ha="center", va="bottom", fontsize=10)
     fig.savefig(OUT_DIR / f"{safe}.png", bbox_inches="tight")
     plt.close(fig)
-    print(f"[done] {name}: wrote {OUT_DIR}/{safe}.png")
+    print(f"[done] {name}: wrote {OUT_DIR}/{safe}.png  ({'; '.join(rmse_lines)})")
 
 
 def main():
