@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 from config import ERA5_VARS, CONUS404_VARS, PATCH_SIZE, TRAIN
 from src.inference.pipeline import run_pipeline
 from src.evaluation._eval_setup import load_models, load_land_mask_from_cache
+from src.evaluation.metrics import power_spectrum_2d
 from src.preprocessing.normalization import NormalizationStats
 from src.preprocessing.land_mask import get_valid_patch_origins
 
@@ -105,18 +106,20 @@ def run_case(idx, year, day_idx, y0, x0, models, stats, static, device):
             plt.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
 
         bax = axes[row, 4]
-        labels = ["ERA5\n(no downscale)", "DRN", "Full\npipeline"]
-        vals = [rmse_era5, rmse_drn, rmse_ens]
-        unit = "K" if var == "T2" else "mm"
-        colors = [AQUA, ORANGE, BLUE]
-        bars = bax.bar(labels, vals, color=colors, width=0.6)
-        for b, v in zip(bars, vals):
-            bax.text(b.get_x() + b.get_width() / 2, v, f"{v:.2f}", ha="center", va="bottom", fontsize=9)
-        bax.set_title(f"RMSE vs CONUS404 target\n{var} ({unit})", fontsize=10)
-        bax.set_ylabel(f"RMSE ({unit})")
+        wl_truth, pw_truth = power_spectrum_2d(truth_field)
+        wl_era5, pw_era5 = power_spectrum_2d(era5_field)
+        wl_drn, pw_drn = power_spectrum_2d(drn_field)
+        wl_ens, pw_ens = power_spectrum_2d(ens_field)
+        bax.loglog(wl_truth, pw_truth, color="black", linewidth=2, label="CONUS404 truth")
+        bax.loglog(wl_era5, pw_era5, color="#1baf7a", linewidth=1.5, linestyle="--", label="ERA5 (no downscale)")
+        bax.loglog(wl_drn, pw_drn, color="#eb6834", linewidth=1.5, label="DRN")
+        bax.loglog(wl_ens, pw_ens, color="#2a78d6", linewidth=1.5, label="Full pipeline")
+        bax.set_title(f"Power spectrum\n{var}", fontsize=10)
+        bax.set_xlabel("wavelength (km)")
+        bax.set_ylabel("power")
+        bax.invert_xaxis()
         bax.spines[["top", "right"]].set_visible(False)
-        bax.tick_params(axis="x", labelsize=8.5)
-        bax.set_ylim(0, max(vals) * 1.25)
+        bax.legend(fontsize=7, loc="lower left", frameon=False)
 
     import datetime as dt
     date_str = (dt.date(year, 1, 1) + dt.timedelta(days=day_idx)).isoformat()
@@ -157,6 +160,7 @@ def main():
             res = run_case(i + 1, year, day_idx, y0, x0, models, stats, static, device)
         except Exception as e:
             print(f"[skip] year={year} day={day_idx} patch=({y0},{x0}): {e}")
+            plt.close("all")
             continue
         for var, (r_era5, r_drn, r_ens) in res.items():
             all_results[var]["era5"].append(r_era5)
