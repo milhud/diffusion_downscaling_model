@@ -171,33 +171,66 @@ class Era5Conus404Dataset(DownscalingDataset):
     # static channels are already normalized once at cache-build time
     # (cache_builder.build_static_fields). ---
 
+    # These are called both with a plain (C, H, W) array (our own
+    # __getitem__) and with a (1, C, H, W) array (physicsnemo's
+    # generate_helpers.save_images, which has already added a batch dim) --
+    # handle both by only adding/removing a batch dim when one isn't present.
+
     def normalize_input(self, x: np.ndarray) -> np.ndarray:
         import torch
 
+        had_batch = x.ndim == 4
         n = len(self.input_variables)
-        vars_t = torch.from_numpy(x[:n]).unsqueeze(0)
-        vars_t = self.norm_stats.normalize_era5(vars_t).squeeze(0).numpy()
-        return np.concatenate([vars_t, x[n:]], axis=0)
+        ch_axis = -3
+        vars_np = np.take(x, range(n), axis=ch_axis)
+        rest_np = np.take(x, range(n, x.shape[ch_axis]), axis=ch_axis)
+        vars_t = torch.from_numpy(vars_np)
+        if not had_batch:
+            vars_t = vars_t.unsqueeze(0)
+        vars_t = self.norm_stats.normalize_era5(vars_t)
+        if not had_batch:
+            vars_t = vars_t.squeeze(0)
+        return np.concatenate([vars_t.numpy(), rest_np], axis=ch_axis)
 
     def denormalize_input(self, x: np.ndarray) -> np.ndarray:
         import torch
 
+        had_batch = x.ndim == 4
         n = len(self.input_variables)
-        vars_t = torch.from_numpy(x[:n]).unsqueeze(0)
-        vars_t = self.norm_stats.denormalize_era5(vars_t).squeeze(0).numpy()
-        return np.concatenate([vars_t, x[n:]], axis=0)
+        ch_axis = -3
+        vars_np = np.take(x, range(n), axis=ch_axis)
+        rest_np = np.take(x, range(n, x.shape[ch_axis]), axis=ch_axis)
+        vars_t = torch.from_numpy(vars_np)
+        if not had_batch:
+            vars_t = vars_t.unsqueeze(0)
+        vars_t = self.norm_stats.denormalize_era5(vars_t)
+        if not had_batch:
+            vars_t = vars_t.squeeze(0)
+        return np.concatenate([vars_t.numpy(), rest_np], axis=ch_axis)
 
     def normalize_output(self, x: np.ndarray) -> np.ndarray:
         import torch
 
-        t = torch.from_numpy(x).unsqueeze(0)
-        return self.norm_stats.normalize_conus(t).squeeze(0).numpy()
+        had_batch = x.ndim == 4
+        t = torch.from_numpy(x)
+        if not had_batch:
+            t = t.unsqueeze(0)
+        t = self.norm_stats.normalize_conus(t)
+        if not had_batch:
+            t = t.squeeze(0)
+        return t.numpy()
 
     def denormalize_output(self, x: np.ndarray) -> np.ndarray:
         import torch
 
-        t = torch.from_numpy(x).unsqueeze(0)
-        return self.norm_stats.denormalize_conus(t).squeeze(0).numpy()
+        had_batch = x.ndim == 4
+        t = torch.from_numpy(x)
+        if not had_batch:
+            t = t.unsqueeze(0)
+        t = self.norm_stats.denormalize_conus(t)
+        if not had_batch:
+            t = t.squeeze(0)
+        return t.numpy()
 
     # --- DownscalingDataset metadata contract ---
 

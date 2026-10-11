@@ -27,13 +27,24 @@ dataset:
     min_land_frac: 0.8
 
 generation:
-    num_ensembles: 16
+    num_ensembles: 4
     seed_batch_size: 4
+    has_lead_time: true  # our dataset.time() returns raw strings, not ISO datetimes --
+                         # has_lead_time=true skips generate.py's strptime("%Y-%m-%dT...")
+                         # parsing and matches `times` directly against dataset.time()
     times:
-        - "2018-001"  # placeholder -- our dataset.time() returns "{year}-day{d:03d}"
+        # Same 6 (year, day) pairs from scripts/run_generic_baselines.py's test-year
+        # (2018-2020) samples, for direct apples-to-apples comparison with our own
+        # model's accuracy numbers on identical held-out samples.
+        - "2020-day232"
+        - "2019-day237"
+        - "2018-day221"
+        - "2019-day230"
+        - "2018-day341"
+        - "2019-day244"
     io:
-        res_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_diffusion/EDMPrecondSuperResolution.0.<STEP>.mdlus
-        reg_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_regression/UNet.0.<STEP>.mdlus
+        res_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_diffusion/checkpoints_diffusion/EDMPrecondSuperResolution.0.5000000.mdlus
+        reg_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_regression/checkpoints_regression/CorrDiffRegressionUNet.0.5000003.mdlus
 
 wandb:
     mode: disabled
