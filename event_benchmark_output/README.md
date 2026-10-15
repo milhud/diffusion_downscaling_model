@@ -104,6 +104,14 @@ This is **not comparable** to R2-D2's ">40 % lower CRPS than BCSD" — different
 * Event-mean biases: ERA5 has systematic wind-speed/FFWI biases with sign depending on the event (e.g. wind ≈ −0.47σ in the two fire events,
   +0.42σ in Michael); DRN biases are within ±0.1σ in 77 % of the 110 event×variable cells (max 0.27σ) vs 46 % for ERA5 (max 0.55σ) and 64 % for the ensemble mean (max 0.47σ).
 
+### 4b. Is a frequency-domain view useful, and is it useful for T2 specifically? — [`figures/t2_spectrum_detail.png`](figures/t2_spectrum_detail.png), [`figures/t2_spectrum_linear_freq.png`](figures/t2_spectrum_linear_freq.png)
+
+Treating a 2D field as a sum of spatial sine/cosine waves (what the FFT-based `power_spectrum_2d`/`spectrum` functions do) is most defensible for **T2**: it is a smooth field whose spatial structure (terrain, coastline, land cover) genuinely lives at identifiable wavelengths, unlike precipitation (intermittent, spiky — a spectrum mixes real structure with noise from a few huge outlier cells, see §9) or RH/wind, which already inherit T2's error pattern plus their own (see spectra_ratio_events.png). So "temperature as a wave" is a literal, not just rhetorical, description of what's being analyzed here — each spatial scale (wavelength) of the T2 field is one Fourier mode, and the question "does the model get wavelength X right" is the question "does it get that wave's amplitude right."
+
+Two follow-up figures narrow in on this for T2:
+* **`t2_spectrum_detail.png`** — the same log-log spectrum as `spectra_ratio_events.png`, with a "figure in figure" inset zoomed on the 4–64 km (short-wavelength) tail. On a log-log plot that tail is squeezed into the rightmost ~15% of the x-axis even though it is the range we care most about (sub-grid, fine-scale detail is exactly what diffusion is supposed to add back); the inset gives it its own axis.
+* **`t2_spectrum_linear_freq.png`** — the same data re-plotted against a **linear** wavenumber axis (cycles/km) instead of log-wavelength. A log axis spaces *octaves* evenly, which is why the high-frequency tail above gets compressed; a linear-frequency axis instead spaces *wavenumber increments* evenly, which stretches out exactly that high-frequency half and reveals detail the log view hides — visible here as a clearer, noisier separation between ERA5 interp (power ratio dipping to ~0.65–0.70 at mid-frequencies) vs DRN/ensemble member (staying closer to 0.85–1.0) than the log-log view shows at a glance. The tradeoff is the reverse at the low-frequency end, where a linear axis crowds the large scales that matter for e.g. the "surface-pressure is scale-dependent" point above — so both views are worth keeping, not either/or.
+
 ## 5. Storms / typhoon-analogues — [`figures/storm_wind_extremes.png`](figures/storm_wind_extremes.png), [`figures/event_*.png`](figures), [`figures/event_timeseries.png`](figures/event_timeseries.png)
 
 Max daily-mean 10 m wind over land in the window (m/s):
@@ -228,7 +236,94 @@ On this task and budget the latent model **matches** a CorrDiff-style pixel-spac
 * The DRN/ensemble were evaluated on 2018–2020 (held-out test years), but no event-vs-random-day comparison was made, so I can't say whether events are
   harder than typical days.
 
-## 12. Files
+## 12. Case study: Anderson Creek Fire (2016) — [`figures/anderson_creek_*.png`](figures), code: [`src/evaluation/anderson_creek_case_study.py`](../src/evaluation/anderson_creek_case_study.py)
+
+**Not part of the headline 10-event scorecard above.** 2016 is a **validation** year (2015–2017 per
+[`docs/DATA_SPECIFICATION.md`](../docs/DATA_SPECIFICATION.md)), not a held-out **test** year (2018–2020), so this event was
+seen (indirectly, via early-stopping/model selection) during training, unlike §1–11. Kept as a separate case study rather
+than mixed into the test-year aggregate figures above, which would have silently moved numbers the rest of this README quotes.
+
+### Why this fire, and what dates
+The **Anderson Creek Fire** — the largest wildfire in Kansas history (≈374,226 MTBS-mapped acres / ≈400,000 acres by press
+reports) — started near Freedom, Woods County, Oklahoma at ~17:45 local on **2016-03-22** (vehicle-sparked, dry fuels, gusty
+wind) and made a fast overnight run north into Barber/Comanche Counties, Kansas; it had burned ~72,000 acres by the afternoon
+of **2016-03-23** (most of the spread), was 95% contained **2016-03-29**, and fully controlled 2016-03-31.
+Three dates were run through the full ERA5→DRN→diffusion pipeline (±2-day windows each, 8 members, 16 Heun steps, same
+settings as §1–11), consistent with "pick the ignition/day-before, peak-spread, and near-containment days" rather than one
+arbitrary date, the same convention that should be applied if more individual-fire (not fire-*weather*-event) case studies are
+added later:
+* `AndersonCreek_start` = **2016-03-21**, the day *before* ignition — starting/background conditions.
+* `AndersonCreek_peak` = **2016-03-23**, the day of maximum fire spread.
+* `AndersonCreek_end` = **2016-03-29**, near-full containment.
+
+Note the existing `CampFire_wind`/`LaborDay_heat` events (§1) are dated to a notable *fire-weather* day, not necessarily a
+specific fire's ignition date, and were not redated for consistency with this convention — doing so would change numbers
+already quoted elsewhere in this README; flagged here for a future pass rather than done silently.
+
+### Fire perimeter — [`figures/anderson_creek_perimeter_overlay.png`](figures/anderson_creek_perimeter_overlay.png), [`figures/anderson_creek_perimeter_overlay_zoom.png`](figures/anderson_creek_perimeter_overlay_zoom.png)
+Two separate "does an official perimeter exist" checks:
+* **NIFC/WFIGS** (`InterAgencyFirePerimeterHistory_All_Years_View` ArcGIS service): **no record.** Queried by name and by
+  (year, acreage) range — nothing matches. Most likely cause: this was a state/private-rangeland fire (Oklahoma Forestry
+  Services / Kansas Forest Service jurisdiction), and WFIGS's federal IRWIN-sourced history mainly covers BLM/USFS/NPS
+  incidents, not state-jurisdiction fires. This is a genuine negative result, not a lookup failure — the user's own framing
+  ("final final perimeter? Maximum fire perimeter?") turns out to be moot for this specific fire via the federal perimeter database.
+* **MTBS** (Monitoring Trends in Burn Severity, Landsat-derived, jurisdiction-agnostic): **found** — `fire_id
+  OK3692409905720160323`, 374,226 acres, saved as [`data/anderson_creek_mtbs_perimeter.geojson`](data/anderson_creek_mtbs_perimeter.geojson).
+  MTBS publishes one assessed perimeter per fire from a single post-fire Landsat scene (here, 2016-04-07, after full
+  containment) — for a grassland fire with no reburn, this **is** both the final and the maximum extent (no separate
+  daily-growth polygon time series is available from MTBS; that would need VIIRS/MODIS daily active-fire hotspot clustering,
+  not attempted here).
+
+The zoomed figure crops the existing 4 km model output to the perimeter's bounding box (no GPU rerun needed) — the actual
+burn scar is clearly resolved at native resolution, and truth/DRN/ensemble-mean FFWI all show mildly elevated fire-weather
+index roughly coincident with the perimeter interior. The wide-window version makes the point that the burn scar (~65×45 km)
+is small relative to the 2048 km model window used for all 13 events; the regional FFWI hot spot in this window is actually
+southwest of the fire itself, so a correct *regional* FFWI pattern is not by itself proof the model nails the fire's own
+micro-scale conditions.
+
+### Does the model track the fire's actual weather arc? — [`figures/anderson_creek_timeline.png`](figures/anderson_creek_timeline.png)
+Spatial means over the MTBS-perimeter mask, start→peak→end, for RH/VPD/WS/FFWI/HDW. The clearest result in this whole case
+study: **ERA5 interp dramatically overstates how dangerous the peak-spread and containment days were**, while **DRN and the
+diffusion ensemble mean track CONUS404 truth closely at all three dates.** At peak spread, truth FFWI ≈27 vs ERA5 ≈46 (≈1.7×
+over); at containment (post-frontal recovery — truth RH jumps back to ≈65%), ERA5's HDW is still ≈60 vs truth ≈24 (≈2.5× over)
+— ERA5 alone would have called the fire's containment day nearly as dangerous as its peak-spread day, which is wrong. DRN/ensemble
+reproduce truth's sharp peak-then-recovery shape in all 5 fields. This is exactly the situation the correction pipeline exists
+for: on a specific, consequential historical fire-weather emergency, not just in aggregate statistics.
+
+### Sensitivity analysis: does the derivation amplify upstream error? — [`figures/anderson_creek_sensitivity.png`](figures/anderson_creek_sensitivity.png), [`data/anderson_creek_sensitivity.csv`](data/anderson_creek_sensitivity.csv)
+"Plug different methods' outputs into the same downstream model" — i.e. feed each method's own T2/TD2/wind-speed into the
+identical `fire_fields()` VPD/FFWI/HDW formula (same code as §7) and compare normalized RMSE (RMSE / truth σ) at the input
+stage vs. the derived-index stage, mean over the 3 dates:
+
+| | T2 | TD2 | WS | → | VPD | FFWI | HDW |
+|---|---|---|---|---|---|---|---|
+| ERA5 interp | 0.39 | 0.53 | **0.88** | | 0.72 | 0.86 | 0.90 |
+| DRN | 0.16 | 0.26 | **0.37** | | 0.25 | 0.31 | 0.30 |
+| Ens mean | 0.16 | 0.27 | **0.40** | | 0.24 | 0.33 | 0.32 |
+
+VPD/FFWI/HDW's normalized error tracks **wind speed's** error (the worst of the three inputs) far more closely than a simple
+average of T2/TD2/WS errors would predict — consistent with HDW being a direct product (VPD × WS) and FFWI's strong
+wind-speed dependence. So the practical sensitivity takeaway is: **fixing wind-speed error would do more for downstream
+fire-weather-index accuracy here than fixing temperature error would**, for both the baseline (ERA5) and the model (DRN/ensemble).
+
+### Ground-truth validation against station data — not completed, documented for a follow-up
+RAWS (Remote Automated Weather Stations) network coverage was checked against [WRCC's RAWS site inventory](https://raws.dri.edu/)
+for Oklahoma/Kansas/Texas/Colorado/Arkansas: the nearest stations to the fire (Seiling OK, Cheyenne OK, Cimarron KS, Stafford
+KS) are all **>100 km** from the burn perimeter — this region (OK/KS mixed-grass rangeland) has sparse RAWS coverage compared
+to e.g. the forested California terrain around the CampFire_wind event. The much closer **Oklahoma Mesonet** station at Alva
+(Woods County, ~25 km from the ignition point) is the right instrument for this fire, but pulling its archived March 2016
+observations needs either the Oklahoma Mesonet's own data-request process or a Synoptic Data (MesoWest) API key — neither
+was available in this session (Synoptic's API returned `401 Invalid token` without one). **This step needs a credential the
+assistant doesn't have**, not more searching; a concrete next step is requesting Mesonet historical data or a free Synoptic
+Data developer token.
+
+### Derived LAI — not computed
+LAI (leaf area index) is already in the data pipeline, but only as a **static input field** fed to the model (z-scored, one
+of 6 static channels — see [`docs/DATA_SPECIFICATION.md`](../docs/DATA_SPECIFICATION.md), `src/data/dataset.py:269`), not a
+predicted/derived output. Turning it into a fire-relevant *derived* quantity (e.g. a fuel-curing or fuel-load proxy combining
+LAI with VPD) would be new analysis code, not a data-availability gap — flagged for a scoping discussion rather than guessed at here.
+
+## 13. Files
 
 ```
 README.md                    this report
@@ -237,9 +332,12 @@ figures/                     39 PNGs (matplotlib; 11 are baselines_*.png)
 data/                        event_catalog.json, grid_latlon.npz, per-event predictions pred_<event>.npz (~2.7 GB, safe to delete),
                              mrpd_T2_<event>.npz, predb_{corrdiff,r2d2}_<event>.npz, CSVs: baselines_{metrics,fire,physical,temporal}.csv, event_metrics, extreme_detection, temporal_metrics, physical_consistency,
                              wind_extremes, precip_diagnostics, mrpd_T2_comparison; JSON: scorecard, rmse_vs_scale, temporal_aggregation, summary
+                             anderson_creek_mtbs_perimeter.geojson, anderson_creek_sensitivity.csv, anderson_creek_summary.json (§12)
 v1_nonoverlap_tiling/        metrics/figures from the first (seam-affected) run, for comparison
 logs/                        SLURM + analysis logs
 ```
 
 Code: `src/evaluation/event_catalog.py` → `event_predict.py` (GPU, `sbatch scripts/run_event_predict.sh`) → `event_analyze.py` →
 `event_mrpd_compare.py`; baselines: `train_baselines.py` (`sbatch scripts/run_train_baseline.sh corrdiff|r2d2 8 38000`) → `scripts/run_baselines_eval.sh` (`time_models.py`, `event_predict_baselines.py`) → `event_baselines_compare.py`; MRPD: `scripts/mrpd_event_baseline.py`, `scripts/mrpd_center_check.py` (`sbatch scripts/run_mrpd_baseline.sh [script]`).
+Anderson Creek case study (§12): `event_catalog.py` (3 extra `AndersonCreek_*` entries) → `event_predict.py --events AndersonCreek_start AndersonCreek_peak AndersonCreek_end`
+(GPU) → `src/evaluation/anderson_creek_case_study.py` (CPU; kept separate from `event_analyze.py`'s aggregate figures on purpose, see §12).

@@ -25,6 +25,18 @@ EVENTS = [
     ("Laura",           "2020-08-27", 30.4, -93.2, "tropical_cyclone"),
     ("LaborDay_heat",   "2020-09-06", 36.5, -119.3, "fire_weather"),
     ("Sally",           "2020-09-16", 30.6, -87.6, "tropical_cyclone"),
+    # Anderson Creek Fire (Woods County OK -> Barber/Comanche Co. KS), largest wildfire
+    # in Kansas history. NOT a held-out test-year event (2016 is a validation year,
+    # 2015-2017, per docs/DATA_SPECIFICATION.md) -- kept separate from the headline
+    # test-year scorecard for that reason. Center ~ midpoint of Freedom, OK (ignition,
+    # 36.76, -99.17) and Medicine Lodge, KS (deep in the burn scar, 37.29, -98.58).
+    # Three dates per the fire's actual timeline (Wikipedia / NPR / KS-TERT AAR):
+    #   ignition 2016-03-22 ~17:45 local, fast overnight run N into KS; ~72,000 ac by
+    #   the afternoon of 2016-03-23 (most of the 400,000-ac spread happened by then);
+    #   95% contained 2016-03-29, fully controlled 2016-03-31.
+    ("AndersonCreek_start", "2016-03-21", 37.0, -98.9, "fire_weather"),  # day before ignition: starting conditions
+    ("AndersonCreek_peak",  "2016-03-23", 37.0, -98.9, "fire_weather"),  # day of maximum spread
+    ("AndersonCreek_end",   "2016-03-29", 37.0, -98.9, "fire_weather"),  # near-full containment
 ]
 
 

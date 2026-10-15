@@ -138,5 +138,47 @@
     "y0": 31,
     "x0": 672,
     "size": 512
+  },
+  {
+    "name": "AndersonCreek_start",
+    "date": "2016-03-21",
+    "year": 2016,
+    "day_index": 80,
+    "lat": 37.0,
+    "lon": -98.9,
+    "kind": "fire_weather",
+    "cy": 450,
+    "cx": 661,
+    "y0": 194,
+    "x0": 405,
+    "size": 512
+  },
+  {
+    "name": "AndersonCreek_peak",
+    "date": "2016-03-23",
+    "year": 2016,
+    "day_index": 82,
+    "lat": 37.0,
+    "lon": -98.9,
+    "kind": "fire_weather",
+    "cy": 450,
+    "cx": 661,
+    "y0": 194,
+    "x0": 405,
+    "size": 512
+  },
+  {
+    "name": "AndersonCreek_end",
+    "date": "2016-03-29",
+    "year": 2016,
+    "day_index": 88,
+    "lat": 37.0,
+    "lon": -98.9,
+    "kind": "fire_weather",
+    "cy": 450,
+    "cx": 661,
+    "y0": 194,
+    "x0": 405,
+    "size": 512
   }
 ]

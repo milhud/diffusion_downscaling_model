@@ -377,6 +377,90 @@ def fig_spectra(cat):
     fig.tight_layout(); fig.savefig(FIG / "spectra_ratio_events.png", dpi=140); plt.close(fig)
 
 
+def fig_spectra_t2_detail(cat):
+    """T2-only frequency-domain follow-up to fig_spectra.
+
+    T2 is the variable where a spectral view is most defensible: it is a smoothly
+    varying field with most of its spatial variance below ~1 cycle/100km (terrain-
+    and coastline-driven structure, not noise), unlike precip's intermittent spikes
+    or RH/wind which are more strongly tied to T2+moisture/terrain error already
+    shown in fig_spectra. So we treat each field here as a sum of 2D spatial sine/
+    cosine waves (a Fourier sum) and ask which wavelengths the model gets right --
+    "temperature as a wave" is literally what the FFT decomposition below assumes.
+
+    Two figures:
+      1. t2_spectrum_detail.png - the usual log-log spectrum (as in fig_spectra)
+         with an inset ("figure in figure") zoomed on the short-wavelength
+         (4-64 km) tail, since that's the part a log-log plot visually compresses
+         into a handful of pixels on the right edge.
+      2. t2_spectrum_linear_freq.png - the same data on a LINEAR wavenumber axis
+         (cycles/km) rather than log-wavelength. Log plots evenly space octaves,
+         which compresses the high-frequency (fine-scale) end; a linear-frequency
+         x-axis instead spaces equal *wavenumber* increments evenly, spreading out
+         exactly the high-frequency detail the log view hides -- at the cost of
+         crowding the large-scale (low-frequency) end.
+    """
+    S = {m: [] for m in ["CONUS404"] + METHODS[:3]}
+    for ev in cat:
+        d = load_event(ev["name"]); land = d["land"].astype(bool)
+        if land.mean() < 0.85:
+            continue
+        di, tr, m = event_fields(d)
+        S["CONUS404"].append(spectrum(tr["T2"]))
+        S["ERA5 interp"].append(spectrum(m["ERA5 interp"]["T2"]))
+        S["DRN"].append(spectrum(m["DRN"]["T2"]))
+        S["Ens mean"].append(spectrum(m["Ens"]["T2"][0]))
+    n = len(S["CONUS404"])
+    if n == 0:
+        return
+
+    k = np.arange(1, len(S["CONUS404"][0]))        # pixel wavenumber, 1..255
+    dx_km = 4.0
+    domain_km = 2048.0
+    wl_km = domain_km / k                            # wavelength, km
+    freq_cyc_per_km = k / domain_km                  # cycles/km, linear axis
+
+    series = {}
+    for meth in ["CONUS404", "ERA5 interp", "DRN", "Ens mean"]:
+        series[meth] = np.mean(S[meth], axis=0)[1:]
+
+    # ---- Figure 1: log-log spectrum with a high-frequency inset ----
+    fig, ax = plt.subplots(figsize=(7, 6))
+    inset = ax.inset_axes([0.08, 0.08, 0.42, 0.40])   # figure-in-figure
+    for meth, c in [("CONUS404", "k"), ("ERA5 interp", COL["ERA5 interp"]),
+                    ("DRN", COL["DRN"]), ("Ens mean", COL["Ens member"])]:
+        lab = "Ens member" if meth == "Ens mean" else meth
+        ax.loglog(wl_km, series[meth], color=c, label=lab)
+        hf = wl_km <= 64.0        # the short-wavelength (<=64 km) tail
+        inset.loglog(wl_km[hf], series[meth][hf], color=c)
+    ax.invert_xaxis()
+    ax.set_xlabel("wavelength (km)"); ax.set_ylabel("power")
+    ax.set_title(f"T2 power spectrum ({n} land-dominated event windows)")
+    ax.legend(fontsize=8)
+    inset.invert_xaxis()
+    inset.set_title("4-64 km tail", fontsize=8)
+    inset.tick_params(labelsize=7)
+    fig.tight_layout(); fig.savefig(FIG / "t2_spectrum_detail.png", dpi=140); plt.close(fig)
+
+    # ---- Figure 2: same data, linear wavenumber axis ----
+    fig, axs = plt.subplots(1, 2, figsize=(13, 5))
+    for meth, c in [("CONUS404", "k"), ("ERA5 interp", COL["ERA5 interp"]),
+                    ("DRN", COL["DRN"]), ("Ens mean", COL["Ens member"])]:
+        lab = "Ens member" if meth == "Ens mean" else meth
+        axs[0].semilogy(freq_cyc_per_km, series[meth], color=c, label=lab)
+        if meth != "CONUS404":
+            axs[1].plot(freq_cyc_per_km, series[meth] / series["CONUS404"], color=c, label=lab)
+    axs[0].set_xlabel("spatial frequency (cycles/km)"); axs[0].set_ylabel("power (log scale)")
+    axs[0].set_title("T2 power vs. linear frequency\n(log-x would compress this fine-scale half of the axis)")
+    axs[0].legend(fontsize=8)
+    axs[1].axhline(1, color="k", lw=0.8); axs[1].set_ylim(0, 2.2)
+    axs[1].set_xlabel("spatial frequency (cycles/km)"); axs[1].set_ylabel("pred / truth power")
+    axs[1].set_title("pred/truth power ratio, linear frequency")
+    for a in axs:
+        a.axvline(1 / dx_km / 2, color="grey", lw=0.6, ls=":")  # Nyquist marker
+    fig.tight_layout(); fig.savefig(FIG / "t2_spectrum_linear_freq.png", dpi=140); plt.close(fig)
+
+
 def fig_tc_wind(cat):
     """CorrDiff/Haikui-style: max wind, wind PDF tail, radius of max wind proxy for cyclones."""
     tcs = [e for e in cat if e["kind"] in ("tropical_cyclone", "extratropical_storm", "convective_wind")]
@@ -672,6 +756,7 @@ def main():
     fig_scorecard(rows)
     fig_precip_diag(cat)
     fig_spectra(cat)
+    fig_spectra_t2_detail(cat)
     tc = fig_tc_wind(cat)
     tm = fig_temporal(cat)
     fig_timeseries(cat)

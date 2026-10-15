@@ -23,6 +23,15 @@
 # resubmissions with the same command (training.io.checkpoint_dir persists
 # and train.py auto-resumes from the latest checkpoint there).
 #
+# batch_size_per_gpu is pinned to 2 below (total_batch_size stays 64, so
+# physicsnemo's compute_num_accumulation_rounds() makes up the difference
+# via gradient accumulation -- same effective batch size, ~8x less peak
+# memory per step). This node's A100s are 40GB, not the 80GB the original
+# crop_size=448 sizing in external/corrdiff/README.md assumed:
+# batch_size_per_gpu="auto" resolves to total_batch_size/world_size=16 and
+# OOMs at crop_size=448 (job 58647358 died with "CUDA out of memory. Tried
+# to allocate 1.53 GiB. GPU 2 has a total capacity of 39.39 GiB").
+#
 # Usage:
 #   sbatch scripts/run_corrdiff_training.sh regression
 #   sbatch scripts/run_corrdiff_training.sh diffusion <path/to/regression/checkpoint.mdlus>
@@ -33,7 +42,9 @@ module purge
 module load python/GEOSpyD/24.3.0-0/3.12
 source external/corrdiff/venv/bin/activate
 
-STAGE="${1:?Usage: sbatch run_corrdiff_training.sh {regression|diffusion} [reg_ckpt_path]}"
+export PYTORCH_ALLOC_CONF=expandable_segments:True
+
+STAGE="${1:?Usage: sbatch run_corrdiff_training.sh regression-or-diffusion optional-reg-ckpt-path}"
 CORRDIFF=external/corrdiff/physicsnemo_src/examples/weather/corrdiff
 CONF_DIR=/gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/conf
 TRAIN_WRAPPER=/gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/train_wrapper.py
@@ -41,13 +52,15 @@ TRAIN_WRAPPER=/gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdif
 cd "$CORRDIFF"
 
 if [ "$STAGE" = "regression" ]; then
-    torchrun --standalone --nproc_per_node=4 "$TRAIN_WRAPPER" \
-        --config-path="$CONF_DIR" --config-name=config_training_era5conus404_regression
+    python -m torch.distributed.run --standalone --nproc_per_node=4 "$TRAIN_WRAPPER" \
+        --config-path="$CONF_DIR" --config-name=config_training_era5conus404_regression \
+        ++training.hp.batch_size_per_gpu=2
 elif [ "$STAGE" = "diffusion" ]; then
     REG_CKPT="${2:?Must pass the Stage-1 checkpoint path as the second argument}"
-    torchrun --standalone --nproc_per_node=4 "$TRAIN_WRAPPER" \
+    python -m torch.distributed.run --standalone --nproc_per_node=4 "$TRAIN_WRAPPER" \
         --config-path="$CONF_DIR" --config-name=config_training_era5conus404_diffusion \
-        ++training.io.regression_checkpoint_path="$REG_CKPT"
+        ++training.io.regression_checkpoint_path="$REG_CKPT" \
+        ++training.hp.batch_size_per_gpu=2
 else
     echo "Unknown stage: $STAGE (expected 'regression' or 'diffusion')" >&2
     exit 1
