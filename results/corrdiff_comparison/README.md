@@ -26,10 +26,35 @@ sat in the SLURM queue before starting (job 58718677 waited ~2h22m; job 58739374
 GPU compute time is the fairer "cost to train" number, wall-clock is the fairer "how long this
 took on the calendar" number.
 
-For context, our own latent model's three stages (DRN + VAE + diffusion) train far faster per
-step, though a direct apples-to-apples step-for-step cost comparison was not re-run here — see
-`results/benchmark/` and `event_benchmark_output/README.md` §10 "Cost" for inference-time cost
-comparisons instead.
+### Our own latent model (DRN + VAE + diffusion), same 4×A100 hardware — clean path only
+
+Source: `sbatch_logs/train_output.*` + `sacct` accounting for `scripts/run_training.sh` jobs
+(`sbatch scripts/run_training.sh --stage {drn,vae,diffusion}`, same 12h wall-time cap and
+auto-resubmit pattern as the NVIDIA runs above). The real history includes a superseded first
+diffusion attempt (~Mar 29–30, trained against an early VAE before a spectral loss was added)
+and some short crashed/retried jobs; the table below is the **one clean path to the final
+checkpoints** (`drn_best.pt` → `vae_best.pt` → `diffusion_best.pt`), excluding that abandoned
+attempt and the crashes, for a fair stage-for-stage comparison against NVIDIA's single clean run.
+
+| Stage | Final checkpoint | SLURM jobs | GPU compute time |
+|---|---|---|---|
+| DRN | `drn_best.pt` (Mar 27) | 17 | 3 d 9 h 29 min (≈326 GPU-h on 4×A100) |
+| VAE | `vae_best.pt` (Apr 23, post spectral-loss) | 4 | 1 d 13 h 17 min (≈149 GPU-h) |
+| Diffusion | `diffusion_best.pt` (Apr 29) | 16 | 6 d 1 h 37 min (≈582 GPU-h) |
+| **Total** | | 37 jobs | **11 d 0 h 23 min** (≈1,058 GPU-h) |
+
+**This is not fewer GPU-hours than NVIDIA's ≈795 GPU-h** — it's more, even on the clean path.
+The reason isn't that latent-space training is slower per step; it's that our pipeline has **three**
+stages trained end-to-end (DRN, then VAE, then diffusion) against NVIDIA's **two** (regression,
+then diffusion) — the extra VAE stage and a second full pass over the data for DRN add real GPU-hours
+that have no NVIDIA-side equivalent. Our diffusion stage had also only reached epoch 106/300 at
+the last logged step (not run to its own full schedule), so this isn't even "ours at full
+convergence" — the true cost to match NVIDIA's convergence standard would be higher still.
+**The "latent is cheaper" argument in this repo is about per-sample/per-step inference cost in
+the compressed 64×64 latent space, not total training GPU-hours** — see
+`event_benchmark_output/README.md` §10 "Cost" (inference-time, found **not** faster than the
+small CorrDiff-style pixel baseline there either) and `results/benchmark/` for where that claim
+actually was and wasn't supported.
 
 ## Accuracy result (6 matched held-out 2018–2020 dates; same dates as `scripts/run_generic_baselines.py`)
 
