@@ -9,17 +9,25 @@ numbers that event_benchmark_output/README.md's prose already quotes for the
 writes its own anderson_creek_*.png / .json / .csv outputs and never touches cat
 beyond the 3 AndersonCreek_* entries.
 
+Uses "Ens member" (a single draw from the full DRN+diffusion pipeline, index 0) rather
+than "Ens mean" (the average across members) throughout -- the ensemble mean is smoothed
+and is not what a user of the generative model actually gets; a single member is the real
+end-to-end pipeline output.
+
 Outputs (event_benchmark_output/):
   figures/anderson_creek_fire_weather_{start,peak,end}.png  - same panel layout as
-      event_analyze.fig_fire: truth/ERA5/DRN/Ens-mean x RH/VPD/WS/FFWI/HDW
+      event_analyze.fig_fire: truth/ERA5/DRN/Ens-member x RH/VPD/WS/FFWI/HDW
   figures/anderson_creek_timeline.png   - start -> peak -> end progression of
       derived fire-weather fields (spatial mean over the fire-perimeter box) per method
   figures/anderson_creek_perimeter_overlay.png - MTBS burn perimeter polygon over
-      the peak-day truth/DRN/Ens-mean FFWI maps
+      the peak-day truth/DRN/Ens-member FFWI maps
   figures/anderson_creek_sensitivity.png - how differences between methods' T2/TD2/
       U10/V10 (the regression target) propagate into the derived FFWI/VPD/HDW index
       ("plug in different outputs into one model" -- same fire_fields() derivation,
       fed different upstream fields, to see how much the downstream index moves)
+  figures/anderson_creek_raws_validation.png - daily-mean station obs (nearest ASOS/RAWS-
+      adjacent surface station, Alva OK) vs. CONUS404 truth / ERA5 interp / DRN / Ens member
+      at the matching grid cell, for ground-truth validation close to the fire.
   data/anderson_creek_summary.json  - numeric summary for all of the above
 
 Usage: python -m src.evaluation.anderson_creek_case_study
@@ -66,7 +74,7 @@ def fig_fire_panel(cat_by_name):
         di, tr, m = event_fields(d)
         fig, axs = plt.subplots(4, 5, figsize=(17, 13.5))
         rows = [("CONUS404 (truth)", lambda v: tr[v]), ("ERA5 interp", lambda v: m["ERA5 interp"][v]),
-                ("DRN", lambda v: m["DRN"][v]), ("Ens mean (diff)", lambda v: m["Ens"][v].mean(0))]
+                ("DRN", lambda v: m["DRN"][v]), ("Ens member (full pipeline)", lambda v: m["Ens"][v][0])]
         for c, v in enumerate(FIELDS_SHOW):
             vmin = np.percentile(tr[v][land], 1); vmax = np.percentile(tr[v][land], 99.5)
             cm = "YlOrRd_r" if v == "RH" else "YlOrRd"
@@ -83,7 +91,7 @@ def fig_timeline(cat_by_name):
     """Spatial-mean (land, fire-perimeter bbox if available) derived fields across the
     3 key dates, per method -- does the model track the fire's actual weather arc?"""
     rings = load_perimeter()
-    stats = {v: {m: [] for m in ["CONUS404", "ERA5 interp", "DRN", "Ens mean"]} for v in FIELDS_SHOW}
+    stats = {v: {m: [] for m in ["CONUS404", "ERA5 interp", "DRN", "Ens member"]} for v in FIELDS_SHOW}
     for name in EVENTS:
         ev = cat_by_name[name]
         d = load_event(name); land = d["land"].astype(bool)
@@ -104,12 +112,12 @@ def fig_timeline(cat_by_name):
             stats[v]["CONUS404"].append(float(tr[v][mask].mean()))
             stats[v]["ERA5 interp"].append(float(m["ERA5 interp"][v][mask].mean()))
             stats[v]["DRN"].append(float(m["DRN"][v][mask].mean()))
-            stats[v]["Ens mean"].append(float(m["Ens"][v].mean(0)[mask].mean()))
+            stats[v]["Ens member"].append(float(m["Ens"][v][0][mask].mean()))
 
     fig, axs = plt.subplots(1, len(FIELDS_SHOW), figsize=(4 * len(FIELDS_SHOW), 4))
     x = np.arange(3)
     for a, v in zip(axs, FIELDS_SHOW):
-        for meth in ["CONUS404", "ERA5 interp", "DRN", "Ens mean"]:
+        for meth in ["CONUS404", "ERA5 interp", "DRN", "Ens member"]:
             a.plot(x, stats[v][meth], "o-", color=COL[meth], label=meth)
         a.set_xticks(x); a.set_xticklabels(["start\n(-1d)", "peak\n(max spread)", "end\n(contain.)"], fontsize=8)
         a.set_title(f"{v} [{UNITS[v]}]"); a.grid(alpha=0.3)
@@ -127,7 +135,7 @@ def fig_perimeter_overlay(cat_by_name):
     di, tr, m = event_fields(d)
     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     panels = [("CONUS404 (truth) FFWI", tr["FFWI"]), ("DRN FFWI", m["DRN"]["FFWI"]),
-              ("Ens mean FFWI", m["Ens"]["FFWI"].mean(0))]
+              ("Ens member FFWI (full pipeline)", m["Ens"]["FFWI"][0])]
     for a, (ttl, field) in zip(axs, panels):
         im = a.pcolormesh(lon, lat, np.where(land, field, np.nan), cmap="YlOrRd",
                            vmin=np.percentile(tr["FFWI"][land], 1), vmax=np.percentile(tr["FFWI"][land], 99.5))
@@ -178,7 +186,7 @@ def fig_sensitivity(cat_by_name):
         d = load_event(name); land = d["land"].astype(bool)
         di, tr, m = event_fields(d)
         methods = {"ERA5 interp": m["ERA5 interp"], "DRN": m["DRN"],
-                   "Ens mean": {v: m["Ens"][v].mean(0) for v in m["Ens"]}}
+                   "Ens member": {v: m["Ens"][v][0] for v in m["Ens"]}}
         for v in ["T2", "TD2", "WS", "VPD", "FFWI", "HDW"]:
             tstd = float(tr[v][land].std())
             for meth, fields_dict in methods.items():
@@ -193,7 +201,7 @@ def fig_sensitivity(cat_by_name):
                                  ["Upstream inputs (direct model outputs)",
                                   "Downstream derived fire-weather indices"]):
         x = np.arange(len(show_vars))
-        for j, meth in enumerate(["ERA5 interp", "DRN", "Ens mean"]):
+        for j, meth in enumerate(["ERA5 interp", "DRN", "Ens member"]):
             vals = [np.mean([r["out_rmse_norm"] for r in rows if r["method"] == meth and r["var"] == v])
                     for v in show_vars]
             a.bar(x + j * 0.25 - 0.25, vals, 0.25, label=meth, color=COL[meth])
@@ -210,6 +218,103 @@ def fig_sensitivity(cat_by_name):
     return rows
 
 
+AVK_CSV = DAT / "anderson_creek_avk_asos_march2016.csv"
+AVK_LAT, AVK_LON = 36.7732, -98.6700   # Alva Regional Airport, Woods Co. OK -- ASOS, hourly
+AVK_DIST_KM = 46  # approx distance from the fire-perimeter centroid (37.12, -98.89)
+
+
+def station_daily_means():
+    """Daily-mean T2/TD2/WS/RH from AVK ASOS observations for the 3 Anderson Creek dates.
+
+    No RAWS station sits close to this fire (nearest ones are >100 km away, see
+    event_benchmark_output/README.md Sec.12) -- AVK is the closest actual surface
+    station with public, no-API-key historical data (Iowa Environmental Mesonet's
+    ASOS archive, mesonet.agron.iastate.edu), at ~46 km from the fire. It is not a
+    RAWS station and not inside the burn perimeter, but it is real, independent,
+    near-ground validation data, which the model-vs-model comparisons above don't have.
+    """
+    import csv
+    rows = list(csv.DictReader(open(AVK_CSV)))
+    by_date = {}
+    for r in rows:
+        by_date.setdefault(r["valid"][:10], []).append(r)
+    out = {}
+    for date in ["2016-03-21", "2016-03-23", "2016-03-29"]:
+        recs = by_date.get(date, [])
+
+        def vals(key):
+            o = []
+            for r in recs:
+                try:
+                    o.append(float(r[key]))
+                except ValueError:
+                    pass
+            return o
+
+        tmpf, dwpf, sknt, relh = vals("tmpf"), vals("dwpf"), vals("sknt"), vals("relh")
+        out[date] = dict(
+            T2=(sum(tmpf) / len(tmpf) - 32) * 5 / 9 + 273.15 if tmpf else None,
+            TD2=(sum(dwpf) / len(dwpf) - 32) * 5 / 9 + 273.15 if dwpf else None,
+            WS=sum(sknt) / len(sknt) * 0.514444 if sknt else None,
+            RH=sum(relh) / len(relh) if relh else None,
+            n_obs=len(recs),
+        )
+    return out
+
+
+def fig_station_validation(cat_by_name):
+    """AVK station daily means vs. CONUS404 truth / ERA5 interp / DRN / Ens member at
+    the nearest grid pixel, for the 3 Anderson Creek dates."""
+    if not AVK_CSV.exists():
+        print("No station CSV found, skipping station validation.")
+        return None
+    station = station_daily_means()
+    fields_show = ["T2", "TD2", "WS", "RH"]
+    rows = []
+    series = {v: {m: [] for m in ["AVK station", "CONUS404", "ERA5 interp", "DRN", "Ens member"]}
+              for v in fields_show}
+    for name in EVENTS:
+        ev = cat_by_name[name]
+        d = load_event(name)
+        lat, lon = latlon_grid_for(ev)
+        dist2 = (lat - AVK_LAT) ** 2 + (lon - AVK_LON) ** 2
+        py, px = np.unravel_index(np.argmin(dist2), dist2.shape)
+        di, tr, m = event_fields(d)
+        date = STAGE_LABEL[name].split("(")[-1].rstrip(")")
+        st = station[date]
+        for v in fields_show:
+            series[v]["AVK station"].append(st[v])
+            series[v]["CONUS404"].append(float(tr[v][py, px]))
+            series[v]["ERA5 interp"].append(float(m["ERA5 interp"][v][py, px]))
+            series[v]["DRN"].append(float(m["DRN"][v][py, px]))
+            series[v]["Ens member"].append(float(m["Ens"][v][0, py, px]))
+            rows.append(dict(stage=name, date=date, var=v, station=st[v], conus404=float(tr[v][py, px]),
+                             era5_interp=float(m["ERA5 interp"][v][py, px]), drn=float(m["DRN"][v][py, px]),
+                             ens_member=float(m["Ens"][v][0, py, px]), station_n_obs=st["n_obs"]))
+
+    colors = {"AVK station": "#111111", "CONUS404": COL["CONUS404"], "ERA5 interp": COL["ERA5 interp"],
+              "DRN": COL["DRN"], "Ens member": COL["Ens member"]}
+    fig, axs = plt.subplots(1, len(fields_show), figsize=(4.2 * len(fields_show), 4.2))
+    x = np.arange(3)
+    for a, v in zip(axs, fields_show):
+        for meth, c in colors.items():
+            style = "s--" if meth == "AVK station" else "o-"
+            a.plot(x, series[v][meth], style, color=c, label=meth,
+                   linewidth=2.2 if meth == "AVK station" else 1.4,
+                   markersize=8 if meth == "AVK station" else 5)
+        a.set_xticks(x); a.set_xticklabels(["start\n(-1d)", "peak\n(max spread)", "end\n(contain.)"], fontsize=8)
+        a.set_title(f"{v} [{UNITS[v]}]"); a.grid(alpha=0.3)
+    axs[0].legend(fontsize=7)
+    fig.suptitle(f"Anderson Creek Fire: nearest independent surface station (AVK, Alva OK ASOS, "
+                 f"~{AVK_DIST_KM} km from the fire) vs. model, start/peak/end")
+    fig.tight_layout(); fig.savefig(FIG / "anderson_creek_raws_validation.png", dpi=140); plt.close(fig)
+
+    import csv
+    with open(DAT / "anderson_creek_station_validation.csv", "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
+    return rows
+
+
 def main():
     cat = json.load(open(DAT / "event_catalog.json"))
     cat_by_name = {e["name"]: e for e in cat if e["name"] in EVENTS}
@@ -221,6 +326,7 @@ def main():
     timeline = fig_timeline(cat_by_name)
     fig_perimeter_overlay(cat_by_name)
     sens = fig_sensitivity(cat_by_name)
+    station_rows = fig_station_validation(cat_by_name)
     summary = dict(events=cat_by_name, timeline=timeline,
                    perimeter_available=PERIM_GEOJSON.exists(),
                    note="2016 is a VALIDATION year (2015-2017), not a held-out TEST year "

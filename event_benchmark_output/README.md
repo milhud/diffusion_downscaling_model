@@ -256,9 +256,11 @@ added later:
 * `AndersonCreek_peak` = **2016-03-23**, the day of maximum fire spread.
 * `AndersonCreek_end` = **2016-03-29**, near-full containment.
 
-Note the existing `CampFire_wind`/`LaborDay_heat` events (§1) are dated to a notable *fire-weather* day, not necessarily a
-specific fire's ignition date, and were not redated for consistency with this convention — doing so would change numbers
-already quoted elsewhere in this README; flagged here for a future pass rather than done silently.
+Checked the existing fire events for consistency with this "first date" convention: `CampFire_wind` is already dated
+**2018-11-08**, which *is* the real Camp Fire's actual ignition date — no change needed, it already follows the convention.
+`LaborDay_heat` (**2020-09-06**) is intentionally different in kind, not an inconsistency: it's dated to a regional
+wind/heat *event* day (several already-burning August 2020 California fires plus some new Labor Day-weekend ignitions),
+not one named fire's start date — redating it would misrepresent what it's a case study of. Neither was changed.
 
 ### Fire perimeter — [`figures/anderson_creek_perimeter_overlay.png`](figures/anderson_creek_perimeter_overlay.png), [`figures/anderson_creek_perimeter_overlay_zoom.png`](figures/anderson_creek_perimeter_overlay_zoom.png)
 Two separate "does an official perimeter exist" checks:
@@ -283,39 +285,55 @@ micro-scale conditions.
 
 ### Does the model track the fire's actual weather arc? — [`figures/anderson_creek_timeline.png`](figures/anderson_creek_timeline.png)
 Spatial means over the MTBS-perimeter mask, start→peak→end, for RH/VPD/WS/FFWI/HDW. The clearest result in this whole case
-study: **ERA5 interp dramatically overstates how dangerous the peak-spread and containment days were**, while **DRN and the
-diffusion ensemble mean track CONUS404 truth closely at all three dates.** At peak spread, truth FFWI ≈27 vs ERA5 ≈46 (≈1.7×
-over); at containment (post-frontal recovery — truth RH jumps back to ≈65%), ERA5's HDW is still ≈60 vs truth ≈24 (≈2.5× over)
-— ERA5 alone would have called the fire's containment day nearly as dangerous as its peak-spread day, which is wrong. DRN/ensemble
-reproduce truth's sharp peak-then-recovery shape in all 5 fields. This is exactly the situation the correction pipeline exists
-for: on a specific, consequential historical fire-weather emergency, not just in aggregate statistics.
+study: **ERA5 interp dramatically overstates how dangerous the peak-spread and containment days were**, while **DRN and
+Ens member (the full pipeline's own single prediction, not a smoothed ensemble mean) track CONUS404 truth closely at all
+three dates.** At peak spread, truth FFWI ≈27 vs ERA5 ≈46 (≈1.7× over); at containment (post-frontal recovery — truth RH
+jumps back to ≈65%), ERA5's HDW is still ≈60 vs truth ≈24 (≈2.5× over) — ERA5 alone would have called the fire's
+containment day nearly as dangerous as its peak-spread day, which is wrong. DRN/Ens member reproduce truth's sharp
+peak-then-recovery shape in all 5 fields. This is exactly the situation the correction pipeline exists for: on a specific,
+consequential historical fire-weather emergency, not just in aggregate statistics. **How strong is this, honestly:** it's
+one event, 3 dates, one fixed crop — not a statistically powered result on its own. What makes it worth including is that
+it's *consistent with*, and a concrete illustration of, the much larger 10-event test-year finding in §1–4 above (the DRN
+stage removes most of ERA5's large-scale error) — a corroborating case study, not independent proof.
 
 ### Sensitivity analysis: does the derivation amplify upstream error? — [`figures/anderson_creek_sensitivity.png`](figures/anderson_creek_sensitivity.png), [`data/anderson_creek_sensitivity.csv`](data/anderson_creek_sensitivity.csv)
 "Plug different methods' outputs into the same downstream model" — i.e. feed each method's own T2/TD2/wind-speed into the
 identical `fire_fields()` VPD/FFWI/HDW formula (same code as §7) and compare normalized RMSE (RMSE / truth σ) at the input
-stage vs. the derived-index stage, mean over the 3 dates:
+stage vs. the derived-index stage, mean over the 3 dates. **Ens member** = a single full-pipeline (DRN+diffusion) draw, not
+an averaged ensemble mean — noisier than a mean would be, but it's what a real user of the model actually gets:
 
 | | T2 | TD2 | WS | → | VPD | FFWI | HDW |
 |---|---|---|---|---|---|---|---|
 | ERA5 interp | 0.39 | 0.53 | **0.88** | | 0.72 | 0.86 | 0.90 |
 | DRN | 0.16 | 0.26 | **0.37** | | 0.25 | 0.31 | 0.30 |
-| Ens mean | 0.16 | 0.27 | **0.40** | | 0.24 | 0.33 | 0.32 |
+| Ens member | 0.21 | 0.36 | **0.52** | | 0.27 | 0.42 | 0.39 |
 
 VPD/FFWI/HDW's normalized error tracks **wind speed's** error (the worst of the three inputs) far more closely than a simple
 average of T2/TD2/WS errors would predict — consistent with HDW being a direct product (VPD × WS) and FFWI's strong
 wind-speed dependence. So the practical sensitivity takeaway is: **fixing wind-speed error would do more for downstream
-fire-weather-index accuracy here than fixing temperature error would**, for both the baseline (ERA5) and the model (DRN/ensemble).
+fire-weather-index accuracy here than fixing temperature error would**, for both the baseline (ERA5) and the model
+(DRN/full pipeline).
 
-### Ground-truth validation against station data — not completed, documented for a follow-up
-RAWS (Remote Automated Weather Stations) network coverage was checked against [WRCC's RAWS site inventory](https://raws.dri.edu/)
-for Oklahoma/Kansas/Texas/Colorado/Arkansas: the nearest stations to the fire (Seiling OK, Cheyenne OK, Cimarron KS, Stafford
-KS) are all **>100 km** from the burn perimeter — this region (OK/KS mixed-grass rangeland) has sparse RAWS coverage compared
-to e.g. the forested California terrain around the CampFire_wind event. The much closer **Oklahoma Mesonet** station at Alva
-(Woods County, ~25 km from the ignition point) is the right instrument for this fire, but pulling its archived March 2016
-observations needs either the Oklahoma Mesonet's own data-request process or a Synoptic Data (MesoWest) API key — neither
-was available in this session (Synoptic's API returned `401 Invalid token` without one). **This step needs a credential the
-assistant doesn't have**, not more searching; a concrete next step is requesting Mesonet historical data or a free Synoptic
-Data developer token.
+### Ground-truth validation against station data — [`figures/anderson_creek_raws_validation.png`](figures/anderson_creek_raws_validation.png), [`data/anderson_creek_station_validation.csv`](data/anderson_creek_station_validation.csv)
+No RAWS station sits close to this fire: checked against [WRCC's RAWS site inventory](https://raws.dri.edu/) for
+Oklahoma/Kansas/Texas/Colorado/Arkansas, the nearest stations (Seiling OK, Cheyenne OK, Cimarron KS, Stafford KS) are all
+**>100 km** from the burn perimeter — this OK/KS mixed-grass-rangeland region has much sparser RAWS coverage than e.g. the
+forested California terrain around the CampFire_wind event. A Synoptic Data (MesoWest) API key would have been the direct
+route to RAWS/Mesonet data but wasn't available (`401 Invalid token` without one). **Found a working alternative instead:**
+the **Iowa Environmental Mesonet's ASOS archive** (`mesonet.agron.iastate.edu`) is public with no key required, and its
+nearest station — **AVK, Alva Regional Airport (Woods Co., OK), ~46 km from the fire-perimeter centroid** — has complete
+hourly data for March 2016 (saved as [`data/anderson_creek_avk_asos_march2016.csv`](data/anderson_creek_avk_asos_march2016.csv)).
+Daily means from that station, compared against CONUS404 truth / ERA5 interp / DRN / Ens member at the nearest grid pixel,
+for all 3 Anderson Creek dates:
+
+* **T2, TD2, RH track CONUS404 reasonably well** at all 3 dates — real, independent corroboration that CONUS404 itself is
+  believable near this fire (it isn't circular: the station is not part of CONUS404's assimilation in this comparison).
+* **Wind speed is the interesting exception:** the station reads *noticeably higher* than even CONUS404 truth at all 3
+  dates (peak-spread day: station ≈13.0 m/s vs CONUS404 truth ≈6.3 m/s — roughly 2×). Plausibly a representativeness
+  mismatch (a point observation at an open airfield vs. a 4 km grid-cell average) rather than a model error, but notable
+  given §12's sensitivity analysis already identifies wind speed as the variable driving most of the downstream
+  fire-weather-index error — a single >40 km-away station can't resolve whether CONUS404 itself under-represents local
+  wind at this location, but it's a concrete flag for anyone using these fields operationally.
 
 ### Derived LAI — not computed
 LAI (leaf area index) is already in the data pipeline, but only as a **static input field** fed to the model (z-scored, one

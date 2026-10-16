@@ -400,7 +400,7 @@ def fig_spectra_t2_detail(cat):
          exactly the high-frequency detail the log view hides -- at the cost of
          crowding the large-scale (low-frequency) end.
     """
-    S = {m: [] for m in ["CONUS404"] + METHODS[:3]}
+    S = {"CONUS404": [], "ERA5 interp": [], "DRN": [], "Ens member": []}
     for ev in cat:
         d = load_event(ev["name"]); land = d["land"].astype(bool)
         if land.mean() < 0.85:
@@ -409,7 +409,7 @@ def fig_spectra_t2_detail(cat):
         S["CONUS404"].append(spectrum(tr["T2"]))
         S["ERA5 interp"].append(spectrum(m["ERA5 interp"]["T2"]))
         S["DRN"].append(spectrum(m["DRN"]["T2"]))
-        S["Ens mean"].append(spectrum(m["Ens"]["T2"][0]))
+        S["Ens member"].append(spectrum(m["Ens"]["T2"][0]))   # single member = full pipeline, not the smoothed mean
     n = len(S["CONUS404"])
     if n == 0:
         return
@@ -421,16 +421,15 @@ def fig_spectra_t2_detail(cat):
     freq_cyc_per_km = k / domain_km                  # cycles/km, linear axis
 
     series = {}
-    for meth in ["CONUS404", "ERA5 interp", "DRN", "Ens mean"]:
+    for meth in ["CONUS404", "ERA5 interp", "DRN", "Ens member"]:
         series[meth] = np.mean(S[meth], axis=0)[1:]
 
     # ---- Figure 1: log-log spectrum with a high-frequency inset ----
     fig, ax = plt.subplots(figsize=(7, 6))
     inset = ax.inset_axes([0.08, 0.08, 0.42, 0.40])   # figure-in-figure
     for meth, c in [("CONUS404", "k"), ("ERA5 interp", COL["ERA5 interp"]),
-                    ("DRN", COL["DRN"]), ("Ens mean", COL["Ens member"])]:
-        lab = "Ens member" if meth == "Ens mean" else meth
-        ax.loglog(wl_km, series[meth], color=c, label=lab)
+                    ("DRN", COL["DRN"]), ("Ens member", COL["Ens member"])]:
+        ax.loglog(wl_km, series[meth], color=c, label=meth)
         hf = wl_km <= 64.0        # the short-wavelength (<=64 km) tail
         inset.loglog(wl_km[hf], series[meth][hf], color=c)
     ax.invert_xaxis()
@@ -445,11 +444,10 @@ def fig_spectra_t2_detail(cat):
     # ---- Figure 2: same data, linear wavenumber axis ----
     fig, axs = plt.subplots(1, 2, figsize=(13, 5))
     for meth, c in [("CONUS404", "k"), ("ERA5 interp", COL["ERA5 interp"]),
-                    ("DRN", COL["DRN"]), ("Ens mean", COL["Ens member"])]:
-        lab = "Ens member" if meth == "Ens mean" else meth
-        axs[0].semilogy(freq_cyc_per_km, series[meth], color=c, label=lab)
+                    ("DRN", COL["DRN"]), ("Ens member", COL["Ens member"])]:
+        axs[0].semilogy(freq_cyc_per_km, series[meth], color=c, label=meth)
         if meth != "CONUS404":
-            axs[1].plot(freq_cyc_per_km, series[meth] / series["CONUS404"], color=c, label=lab)
+            axs[1].plot(freq_cyc_per_km, series[meth] / series["CONUS404"], color=c, label=meth)
     axs[0].set_xlabel("spatial frequency (cycles/km)"); axs[0].set_ylabel("power (log scale)")
     axs[0].set_title("T2 power vs. linear frequency\n(log-x would compress this fine-scale half of the axis)")
     axs[0].legend(fontsize=8)
@@ -459,6 +457,26 @@ def fig_spectra_t2_detail(cat):
     for a in axs:
         a.axvline(1 / dx_km / 2, color="grey", lw=0.6, ls=":")  # Nyquist marker
     fig.tight_layout(); fig.savefig(FIG / "t2_spectrum_linear_freq.png", dpi=140); plt.close(fig)
+
+    # ---- Figure 3: zoomed pred/truth RATIO on a log-wavelength axis ----
+    # Raw power (figure 1) spans ~6 orders of magnitude, so on a log-y axis every
+    # method's line sits almost on top of every other one -- the actual differences
+    # between methods are real but invisible at that scale. Plotting the RATIO
+    # (figure 2's right panel) and zooming to the short-wavelength range where the
+    # methods diverge most is what actually makes the difference visible.
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    zoom = wl_km <= 128.0
+    for meth, c in [("ERA5 interp", COL["ERA5 interp"]), ("DRN", COL["DRN"]), ("Ens member", COL["Ens member"])]:
+        ax.plot(wl_km[zoom], (series[meth] / series["CONUS404"])[zoom], color=c, label=meth, linewidth=2)
+    ax.axhline(1, color="k", lw=1, ls="--", label="truth (ratio = 1)")
+    ax.invert_xaxis()
+    ax.set_ylim(0.5, 1.15)
+    ax.set_xlabel("wavelength (km)"); ax.set_ylabel("pred / truth power (1.0 = matches truth)")
+    ax.set_title("T2: where does each method under/over-shoot fine-scale detail?\n"
+                 "(zoomed to <=128 km, where the methods actually separate)")
+    ax.legend(fontsize=9)
+    ax.grid(alpha=0.3)
+    fig.tight_layout(); fig.savefig(FIG / "t2_spectrum_ratio_zoom.png", dpi=140); plt.close(fig)
 
 
 def fig_tc_wind(cat):
