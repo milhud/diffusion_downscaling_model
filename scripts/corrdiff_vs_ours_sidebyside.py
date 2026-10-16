@@ -1,4 +1,4 @@
-"""Left-right, date-matched comparison: NVIDIA CorrDiff (official physicsnemo code,
+"""Left-right, date-matched comparison: CorrDiff (official physicsnemo code,
 trained to completion) vs our own full pipeline (DRN + diffusion, single full-pipeline
 member -- not the ensemble mean), run on the SAME 6 calendar dates CorrDiff's own
 generate.py used.
@@ -9,7 +9,7 @@ NOT a pixel-identical comparison -- it is both pipelines' real output on the sam
 at each pipeline's own (different, unknown-vs-known) crop location. Same caveat as
 results/corrdiff_comparison/ours_vs_nvidia_corrdiff_rmse.png.
 
-Produces one PNG per date: left column = NVIDIA CorrDiff (ERA5 input / truth / its own
+Produces one PNG per date: left column = CorrDiff (ERA5 input / truth / its own
 prediction, ensemble member 0), right column = ours (ERA5 interp / truth / DRN /
 full-pipeline ensemble member 0), for T2 and PREC_ACC_NC.
 
@@ -74,13 +74,14 @@ def main():
     drn, vae, diff, ema, sched = models
 
     # Fixed patch (same crop every date, picked once) so the 6 figures are directly
-    # comparable to each other on our side; NVIDIA's crop is unknown and differs per date.
+    # comparable to each other on our side; CorrDiff's crop is unknown and differs per date.
     rng = np.random.default_rng(0)
     y0, x0 = origins[int(rng.integers(0, len(origins)))]
     print(f"Our fixed patch origin: ({y0},{x0})")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     BLUE, ORANGE, AQUA, GREY = "#2a78d6", "#eb6834", "#1baf7a", "#86847c"
+    rmse_rows = []
 
     for i, tag in enumerate(tags):
         year, day_idx, date = parse_tag(tag)
@@ -107,26 +108,26 @@ def main():
         truth_phys_ours = to_phys(c_n.astype(np.float32), cm, cs, False, CONUS404_VARS)
         era5_phys_ours = to_phys(e_n.astype(np.float32), em, es, True, ERA5_VARS)
 
-        # --- NVIDIA CorrDiff: already-generated output for this date ---
+        # --- CorrDiff: already-generated output for this date ---
         fig, axes = plt.subplots(len(PLOT_VARS), 6, figsize=(20, 3.6 * len(PLOT_VARS) + 0.8), dpi=130)
         for row, var in enumerate(PLOT_VARS):
             ci = CONUS404_VARS.index(var)
             ei = ERA5_VARS.index({"T2": "t2m", "PREC_ACC_NC": "tp"}[var])
 
-            nv_truth = np.asarray(f["truth"][var][i])
-            nv_era5 = np.asarray(f["input"][{"T2": "t2m", "PREC_ACC_NC": "tp"}[var]][i])
-            nv_pred = np.asarray(f["prediction"][var][0, i])   # member 0, "full pipeline" not mean
+            cd_truth = np.asarray(f["truth"][var][i])
+            cd_era5 = np.asarray(f["input"][{"T2": "t2m", "PREC_ACC_NC": "tp"}[var]][i])
+            cd_pred = np.asarray(f["prediction"][var][0, i])   # member 0, "full pipeline" not mean
 
             our_truth = truth_phys_ours[ci]
             our_era5 = era5_phys_ours[ei]
             our_pipe = ens_phys[ci]
 
             cmap = "RdYlBu_r" if var == "T2" else "Blues"
-            vmin = min(nv_truth.min(), our_truth.min())
-            vmax = max(nv_truth.max(), our_truth.max())
+            vmin = min(cd_truth.min(), our_truth.min())
+            vmax = max(cd_truth.max(), our_truth.max())
 
             panels = [
-                (nv_era5, "NVIDIA: ERA5 input"), (nv_truth, "NVIDIA: truth"), (nv_pred, "NVIDIA: prediction"),
+                (cd_era5, "CorrDiff: ERA5 input"), (cd_truth, "CorrDiff: truth"), (cd_pred, "CorrDiff: prediction"),
                 (our_era5, "Ours: ERA5 interp"), (our_truth, "Ours: truth"), (our_pipe, "Ours: full pipeline"),
             ]
             for col, (field, title) in enumerate(panels):
@@ -136,13 +137,40 @@ def main():
                 plt.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
             axes[row, 0].set_ylabel(var, fontsize=11)
 
-        fig.suptitle(f"NVIDIA CorrDiff (left 3) vs. Ours (right 3) -- {date.isoformat()}\n"
-                     f"Different, unrecorded crop locations for NVIDIA's panels -- same-date, not same-pixel comparison",
+        fig.suptitle(f"CorrDiff (left 3) vs. Ours (right 3) -- {date.isoformat()}\n"
+                     f"Different, unrecorded crop locations for CorrDiff's panels -- same-date, not same-pixel comparison",
                      fontsize=12, fontweight="bold")
         fig.tight_layout()
         fig.savefig(OUT_DIR / f"sidebyside_{date.isoformat()}.png", bbox_inches="tight")
         plt.close(fig)
         print(f"  wrote sidebyside_{date.isoformat()}.png")
+
+        # --- RMSE for ALL 6 variables (not just the 2 plotted above) ---
+        for var in CONUS404_VARS:
+            ci = CONUS404_VARS.index(var)
+            era5_key = {"T2": "t2m", "TD2": "d2m", "U10": "u10", "V10": "v10",
+                        "PSFC": "sp", "PREC_ACC_NC": "tp"}[var]
+            ei = ERA5_VARS.index(era5_key)
+
+            cd_truth = np.asarray(f["truth"][var][i])
+            cd_era5 = np.asarray(f["input"][era5_key][i])
+            cd_pred = np.asarray(f["prediction"][var][0, i])
+            our_truth = truth_phys_ours[ci]
+            our_era5 = era5_phys_ours[ei]
+            our_pipe = ens_phys[ci]
+
+            rmse_rows.append(dict(
+                date=date.isoformat(), var=var,
+                corrdiff_era5_rmse=float(np.sqrt(np.mean((cd_era5 - cd_truth) ** 2))),
+                corrdiff_pipeline_rmse=float(np.sqrt(np.mean((cd_pred - cd_truth) ** 2))),
+                ours_era5_rmse=float(np.sqrt(np.mean((our_era5 - our_truth) ** 2))),
+                ours_pipeline_rmse=float(np.sqrt(np.mean((our_pipe - our_truth) ** 2))),
+            ))
+
+    import csv
+    with open(OUT_DIR.parent / "allvars_rmse.csv", "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rmse_rows[0])); w.writeheader(); w.writerows(rmse_rows)
+    print(f"wrote {OUT_DIR.parent / 'allvars_rmse.csv'}")
 
     print("Done.")
 

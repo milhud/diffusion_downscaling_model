@@ -479,6 +479,80 @@ def fig_spectra_t2_detail(cat):
     fig.tight_layout(); fig.savefig(FIG / "t2_spectrum_ratio_zoom.png", dpi=140); plt.close(fig)
 
 
+def fig_spectra_allvars(cat):
+    """Power spectrum for all 6 base variables (T2, TD2, U10, V10, PSFC, PREC_ACC_NC),
+    not the derived fire-weather fields. Two sheets:
+      1. t2_spectrum_allvars.png: one 2x3 sheet, log-log power spectrum per variable,
+         CONUS404 truth vs ERA5 interp vs DRN vs Pipeline (a single full-pipeline
+         draw, DRN+diffusion, not an averaged ensemble mean).
+      2. t2_spectrum_allvars_zoom.png: same layout, but each panel shows the
+         pred/truth power ratio zoomed to the wavelength range where the methods
+         separate most, since raw power spans orders of magnitude and compresses
+         real differences into near-invisibility on a log-y axis.
+    """
+    show = VARS   # T2, TD2, U10, V10, PSFC, PREC_ACC_NC -- base variables only, no derived fields
+    S = {v: {m: [] for m in ["CONUS404", "ERA5 interp", "DRN", "Pipeline"]} for v in show}
+    for ev in cat:
+        d = load_event(ev["name"]); land = d["land"].astype(bool)
+        if land.mean() < 0.85:
+            continue
+        di, tr, m = event_fields(d)
+        for v in show:
+            S[v]["CONUS404"].append(spectrum(tr[v]))
+            S[v]["ERA5 interp"].append(spectrum(m["ERA5 interp"][v]))
+            S[v]["DRN"].append(spectrum(m["DRN"][v]))
+            S[v]["Pipeline"].append(spectrum(m["Ens"][v][0]))
+    n = len(S[show[0]]["CONUS404"])
+    if n == 0:
+        return
+
+    k = np.arange(1, len(S[show[0]]["CONUS404"][0]))
+    domain_km = 2048.0
+    wl_km = domain_km / k
+
+    series = {v: {meth: np.mean(S[v][meth], axis=0)[1:] for meth in ["CONUS404", "ERA5 interp", "DRN", "Pipeline"]}
+              for v in show}
+
+    colors = {"CONUS404": "k", "ERA5 interp": COL["ERA5 interp"], "DRN": COL["DRN"], "Pipeline": COL["Ens member"]}
+
+    # ---- Sheet 1: raw power, all 6 variables, one sheet ----
+    fig, axs = plt.subplots(2, 3, figsize=(16, 9.5))
+    for ax, v in zip(axs.flat, show):
+        for meth, c in colors.items():
+            ax.loglog(wl_km, series[v][meth], color=c, label=meth)
+        ax.invert_xaxis()
+        ax.set_title(f"{v} [{UNITS[v]}]", fontsize=11)
+        ax.set_xlabel("wavelength (km)"); ax.set_ylabel("power")
+    axs.flat[0].legend(fontsize=9)
+    fig.suptitle(f"power spectrum, all variables ({n} land-dominated event windows)", fontsize=14)
+    fig.tight_layout()
+    fig.savefig(FIG / "t2_spectrum_allvars.png", dpi=140); plt.close(fig)
+
+    # ---- Sheet 2: zoomed pred/truth ratio, all 6 variables, where they separate most ----
+    fig, axs = plt.subplots(2, 3, figsize=(16, 9.5))
+    for ax, v in zip(axs.flat, show):
+        ratios = {meth: series[v][meth] / series[v]["CONUS404"] for meth in ["ERA5 interp", "DRN", "Pipeline"]}
+        # pick the zoom window as the wavelength range with the widest spread between methods
+        spread = np.abs(ratios["ERA5 interp"] - ratios["Pipeline"])
+        if spread.max() > 0:
+            peak_idx = int(np.argmax(spread))
+            lo = max(0, peak_idx - len(wl_km) // 6)
+            hi = min(len(wl_km), peak_idx + len(wl_km) // 6)
+        else:
+            lo, hi = 0, len(wl_km)
+        zoom_wl = wl_km[lo:hi]
+        for meth in ["ERA5 interp", "DRN", "Pipeline"]:
+            ax.plot(zoom_wl, ratios[meth][lo:hi], color=colors[meth], label=meth, linewidth=2)
+        ax.axhline(1, color="k", lw=1, ls="--")
+        ax.invert_xaxis()
+        ax.set_title(f"{v}: most-separated range", fontsize=11)
+        ax.set_xlabel("wavelength (km)"); ax.set_ylabel("pred / truth power")
+    axs.flat[0].legend(fontsize=9)
+    fig.suptitle("power ratio, zoomed to where each variable separates most", fontsize=14)
+    fig.tight_layout()
+    fig.savefig(FIG / "t2_spectrum_allvars_zoom.png", dpi=140); plt.close(fig)
+
+
 def fig_tc_wind(cat):
     """CorrDiff/Haikui-style: max wind, wind PDF tail, radius of max wind proxy for cyclones."""
     tcs = [e for e in cat if e["kind"] in ("tropical_cyclone", "extratropical_storm", "convective_wind")]

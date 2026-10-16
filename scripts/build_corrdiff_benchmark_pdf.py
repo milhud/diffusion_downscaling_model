@@ -71,33 +71,31 @@ def bar_chart_page(pdf, title, categories, values, color):
 
 with PdfPages(OUT) as pdf:
     title_page(pdf, "ERA5→CONUS404 Latent CorrDiff",
-               "Frequency-domain detail · NVIDIA CorrDiff comparison · Anderson Creek Fire case study")
+               "Frequency-domain detail, CorrDiff comparison, Anderson Creek Fire case study")
 
-    image_page(pdf, f"{FIG}/t2_spectrum_detail.png",
-               "T2 power spectrum (log-log) — raw view, all methods look nearly identical")
-    image_page(pdf, f"{FIG}/t2_spectrum_linear_freq.png",
-               "Same data, linear frequency axis — right panel = pred/truth power ratio")
-    image_page(pdf, f"{FIG}/t2_spectrum_ratio_zoom.png",
-               "Zoomed pred/truth ratio, 4–128 km — where the methods actually separate")
+    image_page(pdf, f"{FIG}/t2_spectrum_allvars.png",
+               "power spectrum, all variables, raw view")
+    image_page(pdf, f"{FIG}/t2_spectrum_allvars_zoom.png",
+               "power spectrum, all variables, zoomed to where they separate most")
 
     image_page(pdf, f"{CORR}/ours_vs_nvidia_corrdiff_rmse.png",
-               "Ours vs. NVIDIA CorrDiff — mean RMSE, 6 matched held-out dates")
-    image_page(pdf, f"{CORR}/nvidia_corrdiff_power_spectrum.png",
-               "NVIDIA CorrDiff power spectrum, same 6 dates")
+               "ours vs corrdiff, T2 and precip only, mean RMSE")
+    image_page(pdf, f"{CORR}/accuracy_allvars_bullets.png",
+               "accuracy, all variables, corrdiff vs ours")
 
-    bar_chart_page(pdf, "NVIDIA CorrDiff (official physicsnemo code) — training time, one clean pass",
+    bar_chart_page(pdf, "CorrDiff (official physicsnemo code), training time, one clean pass",
                     ["Regression\n(5M steps)", "Diffusion\n(5M steps)"], [318.6, 476.1], "#76B900")
-    bar_chart_page(pdf, "Our latent model (DRN + VAE + Diffusion) — training time, clean path only",
+    bar_chart_page(pdf, "Our latent model (DRN + VAE + Diffusion), training time, clean path only",
                     ["DRN", "VAE", "Diffusion\n(epoch 106/300)"], [326, 149, 582], "#2A9D8F")
 
     for sp in sorted(glob.glob(f"{SBS}/sidebyside_*.png")):
         date_str = os.path.basename(sp).replace("sidebyside_", "").replace(".png", "")
-        image_page(pdf, sp, f"NVIDIA CorrDiff vs. ours, {date_str} — same date, different (unrecorded) crops")
+        image_page(pdf, sp, f"corrdiff vs ours, {date_str}, same date, different (unrecorded) crops")
 
     stage_captions = {
-        "start": "Anderson Creek Fire — day before ignition (2016-03-21)",
-        "peak": "Anderson Creek Fire — day of maximum spread (2016-03-23)",
-        "end": "Anderson Creek Fire — near-full containment (2016-03-29)",
+        "start": "Anderson Creek Fire, day before ignition (2016-03-21)",
+        "peak": "Anderson Creek Fire, day of maximum spread (2016-03-23)",
+        "end": "Anderson Creek Fire, near-full containment (2016-03-29)",
     }
     for stage in ["start", "peak", "end"]:
         image_page(pdf, f"{FIG}/anderson_creek_fire_weather_{stage}.png", stage_captions[stage])

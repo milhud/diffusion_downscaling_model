@@ -1,5 +1,5 @@
 """
-Accuracy benchmark: NVIDIA CorrDiff (full pipeline, both stages trained to
+Accuracy benchmark: CorrDiff (full pipeline, both stages trained to
 completion) vs our in-house Latent CorrDiff, on held-out test-year (2018-2020)
 samples.
 
@@ -59,7 +59,7 @@ def main():
             corrdiff_rmse[var]["era5"].append(rmse_era5)
             corrdiff_rmse[var]["pipeline"].append(rmse_pred)
 
-    print("\n=== NVIDIA CorrDiff (full pipeline, trained to completion) ===")
+    print("\n=== CorrDiff (full pipeline, trained to completion) ===")
     for var in PLOT_VARS:
         era5_vals = corrdiff_rmse[var]["era5"]
         pipe_vals = corrdiff_rmse[var]["pipeline"]
@@ -79,7 +79,7 @@ def main():
         ax = axes[i]
         unit = "K" if var == "T2" else "mm"
         o = OURS_TEST_YEAR_SAMPLES[var]
-        labels = ["ERA5\n(no downscale)", "Ours\n(Latent CorrDiff)", "NVIDIA\nCorrDiff"]
+        labels = ["ERA5\n(no downscale)", "Ours\n(Latent CorrDiff)", "CorrDiff"]
         vals = [
             float(np.mean(o["era5"]) + np.mean(corrdiff_rmse[var]["era5"])) / 2,  # shared ERA5 baseline, averaged
             float(np.mean(o["pipeline"])),
@@ -92,8 +92,7 @@ def main():
         ax.set_title(f"{var} -- mean RMSE vs CONUS404 target\n(matched dates, test years 2018-2020)", fontsize=10)
         ax.set_ylabel(f"RMSE ({unit})")
         ax.spines[["top", "right"]].set_visible(False)
-    fig.suptitle("Accuracy benchmark: Ours vs NVIDIA CorrDiff (both full pipelines, trained to completion)",
-                 fontsize=12, fontweight="bold", y=1.03)
+    fig.suptitle("Ours vs CorrDiff", fontsize=12, fontweight="bold", y=1.03)
     fig.text(0.5, -0.03,
               "Caveat: same held-out dates, but NOT the same exact crop location (CorrDiff's generation\n"
               "picks a random CONUS crop per sample with no recorded coordinates) -- a statistical, not pixel-identical, comparison.",
@@ -127,14 +126,14 @@ def main():
 
         ax.loglog(wl, pw_truth, color="black", linewidth=2, label="CONUS404 truth")
         ax.loglog(wl, pw_era5, color=AQUA, linewidth=1.5, linestyle="--", label="ERA5 (no downscale)")
-        ax.loglog(wl, pw_pred, color=ORANGE, linewidth=1.5, label="NVIDIA CorrDiff")
+        ax.loglog(wl, pw_pred, color=ORANGE, linewidth=1.5, label="CorrDiff")
         ax.set_title(f"Power spectrum (mean over {truth.shape[0]} samples)\n{var}", fontsize=10)
         ax.set_xlabel("wavelength (km)")
         ax.set_ylabel("power")
         ax.invert_xaxis()
         ax.spines[["top", "right"]].set_visible(False)
         ax.legend(fontsize=8, loc="lower left", frameon=False)
-    fig.suptitle("NVIDIA CorrDiff power spectrum vs CONUS404 truth", fontsize=12, fontweight="bold", y=1.02)
+    fig.suptitle("CorrDiff power spectrum vs CONUS404 truth", fontsize=12, fontweight="bold", y=1.02)
     fig.tight_layout()
     fig.savefig(OUT_DIR / "nvidia_corrdiff_power_spectrum.png", bbox_inches="tight")
     plt.close(fig)
