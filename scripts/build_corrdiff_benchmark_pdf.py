@@ -49,22 +49,16 @@ def title_page(pdf, title, subtitle):
     plt.close(fig)
 
 
-def bar_chart_page(pdf, title, categories, values, color):
+def text_page(pdf, title, lines):
     fig = new_page()
-    fig.text(0.06, 0.93, title, fontsize=17, fontweight="bold", color=FG, ha="left", va="top")
-    ax = fig.add_axes([0.08, 0.1, 0.87, 0.74])
-    x = range(len(categories))
-    bars = ax.bar(x, values, color=color, width=0.55)
-    for b, v in zip(bars, values):
-        ax.text(b.get_x() + b.get_width() / 2, v, f"{v:g}", ha="center", va="bottom", fontsize=12, color=FG)
-    ax.set_xticks(list(x))
-    ax.set_xticklabels(categories, fontsize=12, color=FG)
-    ax.set_ylabel("GPU-hours", fontsize=12, color="#3A414A")
-    ax.tick_params(colors="#3A414A")
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.spines[["left", "bottom"]].set_color("#D8DCE2")
-    ax.yaxis.grid(True, color="#D8DCE2")
-    ax.set_axisbelow(True)
+    fig.text(0.06, 0.9, title, fontsize=24, fontweight="bold", color=FG, ha="left", va="top")
+    y = 0.72
+    for line in lines:
+        wrapped = textwrap.wrap(line, width=100)
+        for j, w in enumerate(wrapped):
+            fig.text(0.08, y, w, fontsize=15, color=FG, ha="left", va="top")
+            y -= 0.055
+        y -= 0.04
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -74,23 +68,30 @@ with PdfPages(OUT) as pdf:
                "Frequency-domain detail, CorrDiff comparison, Anderson Creek Fire case study")
 
     image_page(pdf, f"{FIG}/t2_spectrum_allvars.png",
-               "power spectrum, all variables, raw view")
-    image_page(pdf, f"{FIG}/t2_spectrum_allvars_zoom.png",
-               "power spectrum, all variables, zoomed to where they separate most")
+               "power spectrum, all variables")
 
     image_page(pdf, f"{CORR}/ours_vs_nvidia_corrdiff_rmse.png",
                "ours vs corrdiff, T2 and precip only, mean RMSE")
-    image_page(pdf, f"{CORR}/accuracy_allvars_bullets.png",
+    image_page(pdf, f"{CORR}/accuracy_allvars_bars.png",
                "accuracy, all variables, corrdiff vs ours")
 
-    bar_chart_page(pdf, "CorrDiff (official physicsnemo code), training time, one clean pass",
-                    ["Regression\n(5M steps)", "Diffusion\n(5M steps)"], [318.6, 476.1], "#76B900")
-    bar_chart_page(pdf, "Our latent model (DRN + VAE + Diffusion), training time, clean path only",
-                    ["DRN", "VAE", "Diffusion\n(epoch 106/300)"], [326, 149, 582], "#2A9D8F")
+    text_page(pdf, "CorrDiff training time, one clean pass", [
+        "Regression (CorrDiffRegressionUNet, 5,000,000 steps): 7 SLURM jobs, 3 days 7 hours 39 minutes compute, about 318.6 GPU-hours on 4xA100",
+        "Diffusion (EDMPrecondSuperResolution, 5,000,000 steps): 10 SLURM jobs, 4 days 23 hours 2 minutes compute, about 476.1 GPU-hours",
+        "Total: 17 jobs, 8 days 6 hours 40 minutes compute, about 794.7 GPU-hours",
+        "Wall clock span: 8 days 18 hours 11 minutes (longer than compute time because of two multi hour SLURM queue waits between resubmissions)",
+    ])
+    text_page(pdf, "Our training time (DRN + VAE + diffusion), clean path only", [
+        "DRN: 17 jobs, 3 days 9 hours 29 minutes compute, about 326 GPU-hours",
+        "VAE: 4 jobs, 1 day 13 hours 17 minutes compute, about 149 GPU-hours",
+        "Diffusion: 16 jobs, 6 days 1 hour 37 minutes compute, about 582 GPU-hours (only reached epoch 106 of a planned 300)",
+        "Total: 37 jobs, 11 days 0 hours 23 minutes compute, about 1,058 GPU-hours",
+        "This is more total GPU-hours than CorrDiff's 794.7, even on the clean path, because our pipeline has three stages (DRN, then VAE, then diffusion) against CorrDiff's two (regression, then diffusion)",
+    ])
 
     for sp in sorted(glob.glob(f"{SBS}/sidebyside_*.png")):
         date_str = os.path.basename(sp).replace("sidebyside_", "").replace(".png", "")
-        image_page(pdf, sp, f"corrdiff vs ours, {date_str}, same date, different (unrecorded) crops")
+        image_page(pdf, sp, f"corrdiff vs ours, {date_str}, same date, different map locations")
 
     stage_captions = {
         "start": "Anderson Creek Fire, day before ignition (2016-03-21)",
