@@ -67,8 +67,8 @@ with PdfPages(OUT) as pdf:
     title_page(pdf, "ERA5→CONUS404 Latent CorrDiff",
                "Frequency-domain detail, CorrDiff comparison, Anderson Creek Fire case study")
 
-    image_page(pdf, f"{FIG}/t2_spectrum_allvars.png",
-               "power spectrum, all variables")
+    for v in ["T2", "TD2", "U10", "V10", "PSFC"]:
+        image_page(pdf, f"{CORR}/power_spectrum_sidebyside_{v}.png", f"power spectrum, {v}, corrdiff vs ours")
 
     image_page(pdf, f"{CORR}/ours_vs_nvidia_corrdiff_rmse.png",
                "ours vs corrdiff, T2 and precip only, mean RMSE")
@@ -87,6 +87,13 @@ with PdfPages(OUT) as pdf:
         "Diffusion: 16 jobs, 6 days 1 hour 37 minutes compute, about 582 GPU-hours (only reached epoch 106 of a planned 300)",
         "Total: 37 jobs, 11 days 0 hours 23 minutes compute, about 1,058 GPU-hours",
         "This is more total GPU-hours than CorrDiff's 794.7, even on the clean path, because our pipeline has three stages (DRN, then VAE, then diffusion) against CorrDiff's two (regression, then diffusion)",
+    ])
+    text_page(pdf, "Wall clock: training time vs inference time point in different directions", [
+        "Training (previous two pages): ours uses more total GPU hours (about 1,058 vs CorrDiff's 794.7), because our pipeline has three trained stages against CorrDiff's two",
+        "Inference, live example just run: ours took 1.03s for 4 diffusion steps and 4.25s for 16 steps (4 ensemble members, one A100, 256x256 patch)",
+        "CorrDiff's own logged inference timing (job 58824533): 64.6s total for 4 steps and 4 members on a 448x448 crop, about 4.04s per batch element",
+        "At matched step count (4 steps), ours was about 1s vs CorrDiff's about 4s per element, but the patches are not the same size, so part of that gap is resolution, not purely the architecture",
+        "Training cost and inference cost are two separate questions here and they do not agree: more trained stages cost more to train, but the smaller compressed latent space costs less to run per inference call",
     ])
 
     for sp in sorted(glob.glob(f"{SBS}/sidebyside_*.png")):

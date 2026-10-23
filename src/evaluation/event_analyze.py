@@ -480,17 +480,21 @@ def fig_spectra_t2_detail(cat):
 
 
 def fig_spectra_allvars(cat):
-    """Power spectrum for all 6 base variables (T2, TD2, U10, V10, PSFC, PREC_ACC_NC),
-    not the derived fire-weather fields. Two sheets:
-      1. t2_spectrum_allvars.png: one 2x3 sheet, log-log power spectrum per variable,
-         CONUS404 truth vs ERA5 interp vs DRN vs Pipeline (a single full-pipeline
-         draw, DRN+diffusion, not an averaged ensemble mean).
-      2. t2_spectrum_allvars_zoom.png: same layout, but each panel shows the
-         pred/truth power ratio zoomed to the wavelength range where the methods
-         separate most, since raw power spans orders of magnitude and compresses
-         real differences into near-invisibility on a log-y axis.
+    """Power spectrum for the 5 non-precip base variables (T2, TD2, U10, V10, PSFC),
+    not the derived fire-weather fields. Precip is excluded: its spiky, intermittent
+    spatial structure gives it a power spectrum on a wildly different scale from the
+    other variables (orders of magnitude noisier), which distorts a shared-layout
+    sheet more than it informs it -- precip is covered separately elsewhere.
+
+    One sheet, t2_spectrum_allvars.png: log-log power spectrum per variable, CONUS404
+    truth vs ERA5 interp vs DRN vs Pipeline (a single full-pipeline draw, DRN+diffusion,
+    not an averaged ensemble mean), each panel with a "graph in graph" inset zoomed to
+    the wavelength range where the methods separate most (picked per-variable as the
+    window centered on the largest ERA5-vs-Pipeline gap) -- on the full log-y range,
+    curves sit almost on top of each other and real differences are hard to see;
+    the inset is what actually shows them.
     """
-    show = VARS   # T2, TD2, U10, V10, PSFC, PREC_ACC_NC -- base variables only, no derived fields
+    show = [v for v in VARS if v != "PREC"]   # T2, TD2, U10, V10, PSFC
     S = {v: {m: [] for m in ["CONUS404", "ERA5 interp", "DRN", "Pipeline"]} for v in show}
     for ev in cat:
         d = load_event(ev["name"]); land = d["land"].astype(bool)
@@ -515,7 +519,6 @@ def fig_spectra_allvars(cat):
 
     colors = {"CONUS404": "k", "ERA5 interp": COL["ERA5 interp"], "DRN": COL["DRN"], "Pipeline": COL["Ens member"]}
 
-    # ---- Sheet 1: raw power, all 6 variables, one sheet ----
     fig, axs = plt.subplots(2, 3, figsize=(16, 9.5))
     for ax, v in zip(axs.flat, show):
         for meth, c in colors.items():
@@ -523,34 +526,32 @@ def fig_spectra_allvars(cat):
         ax.invert_xaxis()
         ax.set_title(f"{v} [{UNITS[v]}]", fontsize=11)
         ax.set_xlabel("wavelength (km)"); ax.set_ylabel("power")
+
+        # graph in graph: inset zoomed to where ERA5 and Pipeline separate most.
+        # Search only the middle 80% of the spectrum -- the extreme ends (largest
+        # wavelength, near-Nyquist smallest wavelength) are prone to edge/windowing
+        # artifacts that can spuriously look like the biggest separation.
+        ratio_era5 = series[v]["ERA5 interp"] / series[v]["CONUS404"]
+        ratio_pipe = series[v]["Pipeline"] / series[v]["CONUS404"]
+        spread = np.abs(ratio_era5 - ratio_pipe)
+        search_lo, search_hi = len(wl_km) // 5, len(wl_km) - len(wl_km) // 10
+        if spread[search_lo:search_hi].max() > 0:
+            peak_idx = search_lo + int(np.argmax(spread[search_lo:search_hi]))
+        else:
+            peak_idx = len(wl_km) // 2
+        lo = max(0, peak_idx - len(wl_km) // 6)
+        hi = min(len(wl_km), peak_idx + len(wl_km) // 6)
+        inset = ax.inset_axes([0.08, 0.08, 0.42, 0.38])
+        for meth, c in colors.items():
+            inset.loglog(wl_km[lo:hi], series[v][meth][lo:hi], color=c)
+        inset.invert_xaxis()
+        inset.set_title(f"{wl_km[hi-1]:.0f}-{wl_km[lo]:.0f} km", fontsize=7)
+        inset.tick_params(labelsize=6)
     axs.flat[0].legend(fontsize=9)
-    fig.suptitle(f"power spectrum, all variables ({n} land-dominated event windows)", fontsize=14)
+    axs.flat[-1].axis("off")
+    fig.suptitle(f"power spectrum, all variables except precip ({n} land-dominated event windows)", fontsize=14)
     fig.tight_layout()
     fig.savefig(FIG / "t2_spectrum_allvars.png", dpi=140); plt.close(fig)
-
-    # ---- Sheet 2: zoomed pred/truth ratio, all 6 variables, where they separate most ----
-    fig, axs = plt.subplots(2, 3, figsize=(16, 9.5))
-    for ax, v in zip(axs.flat, show):
-        ratios = {meth: series[v][meth] / series[v]["CONUS404"] for meth in ["ERA5 interp", "DRN", "Pipeline"]}
-        # pick the zoom window as the wavelength range with the widest spread between methods
-        spread = np.abs(ratios["ERA5 interp"] - ratios["Pipeline"])
-        if spread.max() > 0:
-            peak_idx = int(np.argmax(spread))
-            lo = max(0, peak_idx - len(wl_km) // 6)
-            hi = min(len(wl_km), peak_idx + len(wl_km) // 6)
-        else:
-            lo, hi = 0, len(wl_km)
-        zoom_wl = wl_km[lo:hi]
-        for meth in ["ERA5 interp", "DRN", "Pipeline"]:
-            ax.plot(zoom_wl, ratios[meth][lo:hi], color=colors[meth], label=meth, linewidth=2)
-        ax.axhline(1, color="k", lw=1, ls="--")
-        ax.invert_xaxis()
-        ax.set_title(f"{v}: most-separated range", fontsize=11)
-        ax.set_xlabel("wavelength (km)"); ax.set_ylabel("pred / truth power")
-    axs.flat[0].legend(fontsize=9)
-    fig.suptitle("power ratio, zoomed to where each variable separates most", fontsize=14)
-    fig.tight_layout()
-    fig.savefig(FIG / "t2_spectrum_allvars_zoom.png", dpi=140); plt.close(fig)
 
 
 def fig_tc_wind(cat):
