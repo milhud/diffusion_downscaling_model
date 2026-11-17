@@ -1,0 +1,125 @@
+hydra:
+  job:
+    chdir: false
+    name: era5conus404_generate_many
+  run:
+    dir: ./external/corrdiff/output/${hydra:job.name}
+  searchpath:
+  - pkg://conf/base
+defaults:
+- generation: non_patched
+dataset:
+  type: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/dataset.py::Era5Conus404Dataset
+  cache_dir: /discover/nobackup/sduan/.data
+  norm_stats_path: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/norm_stats.npz
+  years:
+  - 2018
+  - 2019
+  - 2020
+  input_variables:
+  - t2m
+  - d2m
+  - u10
+  - v10
+  - sp
+  - tp
+  output_variables:
+  - T2
+  - TD2
+  - U10
+  - V10
+  - PSFC
+  - PREC_ACC_NC
+  invariant_variables:
+  - terrain
+  - orog_var
+  - lat
+  - lon
+  - lai
+  - lsm
+  crop_size: 448
+  min_land_frac: 0.8
+  patch_manifest: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/results/corrdiff_comparison/shared_patches_many.json
+generation:
+  num_ensembles: 4
+  seed_batch_size: 4
+  has_lead_time: true
+  times:
+  - 2018-day026
+  - 2018-day076
+  - 2018-day086
+  - 2018-day088
+  - 2018-day099
+  - 2018-day100
+  - 2018-day123
+  - 2018-day132
+  - 2018-day137
+  - 2018-day139
+  - 2018-day170
+  - 2018-day194
+  - 2018-day208
+  - 2018-day210
+  - 2018-day221
+  - 2018-day225
+  - 2018-day233
+  - 2018-day234
+  - 2018-day238
+  - 2018-day259
+  - 2018-day280
+  - 2018-day286
+  - 2018-day325
+  - 2018-day344
+  - 2018-day346
+  - 2018-day361
+  - 2018-day363
+  - 2019-day039
+  - 2019-day052
+  - 2019-day100
+  - 2019-day133
+  - 2019-day136
+  - 2019-day142
+  - 2019-day145
+  - 2019-day172
+  - 2019-day223
+  - 2019-day234
+  - 2019-day256
+  - 2019-day274
+  - 2019-day283
+  - 2019-day289
+  - 2019-day297
+  - 2019-day332
+  - 2019-day333
+  - 2019-day335
+  - 2019-day336
+  - 2019-day345
+  - 2019-day351
+  - 2020-day007
+  - 2020-day031
+  - 2020-day038
+  - 2020-day039
+  - 2020-day049
+  - 2020-day061
+  - 2020-day065
+  - 2020-day072
+  - 2020-day079
+  - 2020-day091
+  - 2020-day093
+  - 2020-day138
+  - 2020-day145
+  - 2020-day147
+  - 2020-day198
+  - 2020-day206
+  - 2020-day211
+  - 2020-day227
+  - 2020-day253
+  - 2020-day264
+  - 2020-day285
+  - 2020-day288
+  - 2020-day291
+  - 2020-day327
+  io:
+    res_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_diffusion/checkpoints_diffusion/EDMPrecondSuperResolution.0.5000000.mdlus
+    reg_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_regression/checkpoints_regression/CorrDiffRegressionUNet.0.5000003.mdlus
+    output_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/results/corrdiff_comparison/corrdiff_output_many.nc
+wandb:
+  mode: disabled

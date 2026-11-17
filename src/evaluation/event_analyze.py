@@ -377,6 +377,183 @@ def fig_spectra(cat):
     fig.tight_layout(); fig.savefig(FIG / "spectra_ratio_events.png", dpi=140); plt.close(fig)
 
 
+def fig_spectra_t2_detail(cat):
+    """T2-only frequency-domain follow-up to fig_spectra.
+
+    T2 is the variable where a spectral view is most defensible: it is a smoothly
+    varying field with most of its spatial variance below ~1 cycle/100km (terrain-
+    and coastline-driven structure, not noise), unlike precip's intermittent spikes
+    or RH/wind which are more strongly tied to T2+moisture/terrain error already
+    shown in fig_spectra. So we treat each field here as a sum of 2D spatial sine/
+    cosine waves (a Fourier sum) and ask which wavelengths the model gets right --
+    "temperature as a wave" is literally what the FFT decomposition below assumes.
+
+    Two figures:
+      1. t2_spectrum_detail.png - the usual log-log spectrum (as in fig_spectra)
+         with an inset ("figure in figure") zoomed on the short-wavelength
+         (4-64 km) tail, since that's the part a log-log plot visually compresses
+         into a handful of pixels on the right edge.
+      2. t2_spectrum_linear_freq.png - the same data on a LINEAR wavenumber axis
+         (cycles/km) rather than log-wavelength. Log plots evenly space octaves,
+         which compresses the high-frequency (fine-scale) end; a linear-frequency
+         x-axis instead spaces equal *wavenumber* increments evenly, spreading out
+         exactly the high-frequency detail the log view hides -- at the cost of
+         crowding the large-scale (low-frequency) end.
+    """
+    S = {"CONUS404": [], "ERA5 interp": [], "DRN": [], "Ens member": []}
+    for ev in cat:
+        d = load_event(ev["name"]); land = d["land"].astype(bool)
+        if land.mean() < 0.85:
+            continue
+        di, tr, m = event_fields(d)
+        S["CONUS404"].append(spectrum(tr["T2"]))
+        S["ERA5 interp"].append(spectrum(m["ERA5 interp"]["T2"]))
+        S["DRN"].append(spectrum(m["DRN"]["T2"]))
+        S["Ens member"].append(spectrum(m["Ens"]["T2"][0]))   # single member = full pipeline, not the smoothed mean
+    n = len(S["CONUS404"])
+    if n == 0:
+        return
+
+    k = np.arange(1, len(S["CONUS404"][0]))        # pixel wavenumber, 1..255
+    dx_km = 4.0
+    domain_km = 2048.0
+    wl_km = domain_km / k                            # wavelength, km
+    freq_cyc_per_km = k / domain_km                  # cycles/km, linear axis
+
+    series = {}
+    for meth in ["CONUS404", "ERA5 interp", "DRN", "Ens member"]:
+        series[meth] = np.mean(S[meth], axis=0)[1:]
+
+    # ---- Figure 1: log-log spectrum with a high-frequency inset ----
+    fig, ax = plt.subplots(figsize=(7, 6))
+    inset = ax.inset_axes([0.08, 0.08, 0.42, 0.40])   # figure-in-figure
+    for meth, c in [("CONUS404", "k"), ("ERA5 interp", COL["ERA5 interp"]),
+                    ("DRN", COL["DRN"]), ("Ens member", COL["Ens member"])]:
+        ax.loglog(wl_km, series[meth], color=c, label=meth)
+        hf = wl_km <= 64.0        # the short-wavelength (<=64 km) tail
+        inset.loglog(wl_km[hf], series[meth][hf], color=c)
+    ax.invert_xaxis()
+    ax.set_xlabel("wavelength (km)"); ax.set_ylabel("power")
+    ax.set_title(f"T2 power spectrum ({n} land-dominated event windows)")
+    ax.legend(fontsize=8)
+    inset.invert_xaxis()
+    inset.set_title("4-64 km tail", fontsize=8)
+    inset.tick_params(labelsize=7)
+    fig.tight_layout(); fig.savefig(FIG / "t2_spectrum_detail.png", dpi=140); plt.close(fig)
+
+    # ---- Figure 2: same data, linear wavenumber axis ----
+    fig, axs = plt.subplots(1, 2, figsize=(13, 5))
+    for meth, c in [("CONUS404", "k"), ("ERA5 interp", COL["ERA5 interp"]),
+                    ("DRN", COL["DRN"]), ("Ens member", COL["Ens member"])]:
+        axs[0].semilogy(freq_cyc_per_km, series[meth], color=c, label=meth)
+        if meth != "CONUS404":
+            axs[1].plot(freq_cyc_per_km, series[meth] / series["CONUS404"], color=c, label=meth)
+    axs[0].set_xlabel("spatial frequency (cycles/km)"); axs[0].set_ylabel("power (log scale)")
+    axs[0].set_title("T2 power vs. linear frequency\n(log-x would compress this fine-scale half of the axis)")
+    axs[0].legend(fontsize=8)
+    axs[1].axhline(1, color="k", lw=0.8); axs[1].set_ylim(0, 2.2)
+    axs[1].set_xlabel("spatial frequency (cycles/km)"); axs[1].set_ylabel("pred / truth power")
+    axs[1].set_title("pred/truth power ratio, linear frequency")
+    for a in axs:
+        a.axvline(1 / dx_km / 2, color="grey", lw=0.6, ls=":")  # Nyquist marker
+    fig.tight_layout(); fig.savefig(FIG / "t2_spectrum_linear_freq.png", dpi=140); plt.close(fig)
+
+    # ---- Figure 3: zoomed pred/truth RATIO on a log-wavelength axis ----
+    # Raw power (figure 1) spans ~6 orders of magnitude, so on a log-y axis every
+    # method's line sits almost on top of every other one -- the actual differences
+    # between methods are real but invisible at that scale. Plotting the RATIO
+    # (figure 2's right panel) and zooming to the short-wavelength range where the
+    # methods diverge most is what actually makes the difference visible.
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    zoom = wl_km <= 128.0
+    for meth, c in [("ERA5 interp", COL["ERA5 interp"]), ("DRN", COL["DRN"]), ("Ens member", COL["Ens member"])]:
+        ax.plot(wl_km[zoom], (series[meth] / series["CONUS404"])[zoom], color=c, label=meth, linewidth=2)
+    ax.axhline(1, color="k", lw=1, ls="--", label="truth (ratio = 1)")
+    ax.invert_xaxis()
+    ax.set_ylim(0.5, 1.15)
+    ax.set_xlabel("wavelength (km)"); ax.set_ylabel("pred / truth power (1.0 = matches truth)")
+    ax.set_title("T2: where does each method under/over-shoot fine-scale detail?\n"
+                 "(zoomed to <=128 km, where the methods actually separate)")
+    ax.legend(fontsize=9)
+    ax.grid(alpha=0.3)
+    fig.tight_layout(); fig.savefig(FIG / "t2_spectrum_ratio_zoom.png", dpi=140); plt.close(fig)
+
+
+def fig_spectra_allvars(cat):
+    """Power spectrum for the 5 non-precip base variables (T2, TD2, U10, V10, PSFC),
+    not the derived fire-weather fields. Precip is excluded: its spiky, intermittent
+    spatial structure gives it a power spectrum on a wildly different scale from the
+    other variables (orders of magnitude noisier), which distorts a shared-layout
+    sheet more than it informs it -- precip is covered separately elsewhere.
+
+    One sheet, t2_spectrum_allvars.png: log-log power spectrum per variable, CONUS404
+    truth vs ERA5 interp vs DRN vs Pipeline (a single full-pipeline draw, DRN+diffusion,
+    not an averaged ensemble mean), each panel with a "graph in graph" inset zoomed to
+    the wavelength range where the methods separate most (picked per-variable as the
+    window centered on the largest ERA5-vs-Pipeline gap) -- on the full log-y range,
+    curves sit almost on top of each other and real differences are hard to see;
+    the inset is what actually shows them.
+    """
+    show = [v for v in VARS if v != "PREC"]   # T2, TD2, U10, V10, PSFC
+    S = {v: {m: [] for m in ["CONUS404", "ERA5 interp", "DRN", "Pipeline"]} for v in show}
+    for ev in cat:
+        d = load_event(ev["name"]); land = d["land"].astype(bool)
+        if land.mean() < 0.85:
+            continue
+        di, tr, m = event_fields(d)
+        for v in show:
+            S[v]["CONUS404"].append(spectrum(tr[v]))
+            S[v]["ERA5 interp"].append(spectrum(m["ERA5 interp"][v]))
+            S[v]["DRN"].append(spectrum(m["DRN"][v]))
+            S[v]["Pipeline"].append(spectrum(m["Ens"][v][0]))
+    n = len(S[show[0]]["CONUS404"])
+    if n == 0:
+        return
+
+    k = np.arange(1, len(S[show[0]]["CONUS404"][0]))
+    domain_km = 2048.0
+    wl_km = domain_km / k
+
+    series = {v: {meth: np.mean(S[v][meth], axis=0)[1:] for meth in ["CONUS404", "ERA5 interp", "DRN", "Pipeline"]}
+              for v in show}
+
+    colors = {"CONUS404": "k", "ERA5 interp": COL["ERA5 interp"], "DRN": COL["DRN"], "Pipeline": COL["Ens member"]}
+
+    fig, axs = plt.subplots(2, 3, figsize=(16, 9.5))
+    for ax, v in zip(axs.flat, show):
+        for meth, c in colors.items():
+            ax.loglog(wl_km, series[v][meth], color=c, label=meth)
+        ax.invert_xaxis()
+        ax.set_title(f"{v} [{UNITS[v]}]", fontsize=11)
+        ax.set_xlabel("wavelength (km)"); ax.set_ylabel("power")
+
+        # graph in graph: inset zoomed to where ERA5 and Pipeline separate most.
+        # Search only the middle 80% of the spectrum -- the extreme ends (largest
+        # wavelength, near-Nyquist smallest wavelength) are prone to edge/windowing
+        # artifacts that can spuriously look like the biggest separation.
+        ratio_era5 = series[v]["ERA5 interp"] / series[v]["CONUS404"]
+        ratio_pipe = series[v]["Pipeline"] / series[v]["CONUS404"]
+        spread = np.abs(ratio_era5 - ratio_pipe)
+        search_lo, search_hi = len(wl_km) // 5, len(wl_km) - len(wl_km) // 10
+        if spread[search_lo:search_hi].max() > 0:
+            peak_idx = search_lo + int(np.argmax(spread[search_lo:search_hi]))
+        else:
+            peak_idx = len(wl_km) // 2
+        lo = max(0, peak_idx - len(wl_km) // 6)
+        hi = min(len(wl_km), peak_idx + len(wl_km) // 6)
+        inset = ax.inset_axes([0.08, 0.08, 0.42, 0.38])
+        for meth, c in colors.items():
+            inset.loglog(wl_km[lo:hi], series[v][meth][lo:hi], color=c)
+        inset.invert_xaxis()
+        inset.set_title(f"{wl_km[hi-1]:.0f}-{wl_km[lo]:.0f} km", fontsize=7)
+        inset.tick_params(labelsize=6)
+    axs.flat[0].legend(fontsize=9)
+    axs.flat[-1].axis("off")
+    fig.suptitle(f"power spectrum, all variables except precip ({n} land-dominated event windows)", fontsize=14)
+    fig.tight_layout()
+    fig.savefig(FIG / "t2_spectrum_allvars.png", dpi=140); plt.close(fig)
+
+
 def fig_tc_wind(cat):
     """CorrDiff/Haikui-style: max wind, wind PDF tail, radius of max wind proxy for cyclones."""
     tcs = [e for e in cat if e["kind"] in ("tropical_cyclone", "extratropical_storm", "convective_wind")]
@@ -672,6 +849,7 @@ def main():
     fig_scorecard(rows)
     fig_precip_diag(cat)
     fig_spectra(cat)
+    fig_spectra_t2_detail(cat)
     tc = fig_tc_wind(cat)
     tm = fig_temporal(cat)
     fig_timeseries(cat)

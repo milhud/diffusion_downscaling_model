@@ -1,0 +1,53 @@
+# CorrDiff inference/generation config for the ERA5->CONUS404 baseline.
+# Fill in generation.times and the two checkpoint paths after training
+# finishes, then run (from physicsnemo_src/examples/weather/corrdiff/):
+#   python generate.py --config-path=../../../../../conf --config-name=config_generate_era5conus404
+
+hydra:
+    job:
+        chdir: false
+        name: era5conus404_generate
+    run:
+        dir: ./external/corrdiff/output/${hydra:job.name}
+    searchpath:
+        - pkg://conf/base
+
+defaults:
+    - generation: non_patched
+
+dataset:
+    type: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/dataset.py::Era5Conus404Dataset
+    cache_dir: /discover/nobackup/sduan/.data
+    norm_stats_path: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/norm_stats.npz
+    years: [2018, 2019, 2020]
+    input_variables: [t2m, d2m, u10, v10, sp, tp]
+    output_variables: [T2, TD2, U10, V10, PSFC, PREC_ACC_NC]
+    invariant_variables: [terrain, orog_var, lat, lon, lai, lsm]
+    crop_size: 448
+    min_land_frac: 0.8
+    # Fixed per-date crops shared with our pipeline (scripts/select_shared_patches.py).
+    # Remove this line to fall back to CorrDiff's unseeded random crop.
+    patch_manifest: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/results/corrdiff_comparison/shared_patches.json
+
+generation:
+    num_ensembles: 4
+    seed_batch_size: 4
+    has_lead_time: true  # our dataset.time() returns raw strings, not ISO datetimes --
+                         # has_lead_time=true skips generate.py's strptime("%Y-%m-%dT...")
+                         # parsing and matches `times` directly against dataset.time()
+    times:
+        # Same 6 (year, day) pairs from scripts/run_generic_baselines.py's test-year
+        # (2018-2020) samples, for direct apples-to-apples comparison with our own
+        # model's accuracy numbers on identical held-out samples.
+        - "2020-day232"
+        - "2019-day237"
+        - "2018-day221"
+        - "2019-day230"
+        - "2018-day341"
+        - "2019-day244"
+    io:
+        res_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_diffusion/checkpoints_diffusion/EDMPrecondSuperResolution.0.5000000.mdlus
+        reg_ckpt_filename: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/external/corrdiff/checkpoints_regression/checkpoints_regression/CorrDiffRegressionUNet.0.5000003.mdlus
+
+wandb:
+    mode: disabled

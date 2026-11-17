@@ -73,18 +73,20 @@ LATENT_CH = 8                # VAE latent channels (when OUT_CH > 1)
 
 ## Data Sources
 
-- **ERA5:** ECMWF Reanalysis v5
-  - Location: `/discover/nobackup/sduan/pipeline/data/processed/era5_{YYYY}.nc`
-  - Symlinked from: `data/era5_{YYYY}.nc`
+- **ERA5:** ECMWF Reanalysis v5, daily CONUS subset rebuilt from the public ARCO-ERA5 mirror
+  (`scripts/download_era5_arco.py`; instant variables are the mean of hours 00-23, `tp` is the sum of hours 01-24)
+  - Location: `/discover/nobackup/hpmille1/data/era5_data/era5_{YYYY}.nc`
+  - Symlinked from: `data/era5_{YYYY}.nc` (created by `data/link_data.sh`)
 
 - **CONUS404:** WRF dynamical downscaling of ERA5 by NCAR
-  - Location: `/discover/nobackup/hpmille1/final_data/conus404_yearly_{YYYY}.nc`
-  - Symlinked from: `data/conus404_yearly_{YYYY}.nc`
+  - Location: `/discover/nobackup/hpmille1/data/conus404_data/conus404_yearly_{YYYY}.nc`
+  - Symlinked from: `data/conus404_yearly_{YYYY}.nc` (created by `data/link_data.sh`)
 
 ## Available Variables in Source Files
 
 ### ERA5 (all available in .nc files)
-`cvh, cvl, d2m, lai_hv, lai_lv, lsm, sp, t2m, tp, u10, v10, z, overlap, lai`
+`t2m, d2m, u10, v10, sp, tp, lsm` (the earlier CDS-derived files also carried `cvh, cvl, lai_hv, lai_lv, z, lai`; the
+rebuilt files omit them, and the cached static fields already hold LAI/land-sea channels)
 
 ### CONUS404 (all available in .nc files)
 `T2, Q2, TD2, PSFC, ACRAINLSM, LAI, U10, V10, Z, W, PREC_ACC_NC`

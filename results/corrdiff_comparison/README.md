@@ -1,0 +1,92 @@
+# NVIDIA CorrDiff (official physicsnemo code) vs. our model
+
+This directory holds the accuracy comparison from commit `e689c87` between **our** latent
+model and **NVIDIA's own CorrDiff implementation** (`external/corrdiff/physicsnemo_src/examples/weather/corrdiff`,
+run via `scripts/run_corrdiff_training.sh` / `train_wrapper.py`, both stages trained to completion
+on our ERA5→CONUS404 data). This is the real NVIDIA codebase, not the smaller "CorrDiff-style"
+re-implementation used as a baseline in `event_benchmark_output/README.md` §10 (that one is a
+from-scratch pixel-space EDM model, 41.5M params, 8h/29k steps — a different, lighter-weight run).
+
+## Training time (this repo's hardware: 1 node, 4×A100 40GB)
+
+Both stages were trained for 5,000,000+ steps to completion, each resubmitted repeatedly because
+the SLURM queue here caps jobs at 12h wall time (`train.py` auto-resumes from
+`training.io.checkpoint_dir` on each resubmission). Source: `corrdiff_regression_loop.log`,
+`corrdiff_diffusion_loop.log`, and `sacct` job accounting (exact per-job elapsed time, excludes
+queue wait between resubmissions).
+
+| Stage | Checkpoint | SLURM jobs | GPU compute time (sum of job `Elapsed`) | Wall-clock span (first job start to completion, incl. queue waits) |
+|---|---|---|---|---|
+| Regression (`CorrDiffRegressionUNet`) | step 5,000,003 | 7 (58647542 → 58695849) | **3 d 7 h 39 min** (≈318.6 GPU-h on 4×A100) | 3 d 5 h 40 min (Sep 29 20:54 → Oct 3 02:35 EDT) |
+| Diffusion (`EDMPrecondSuperResolution`) | step 5,000,000 | 10 (58706216 → 58785427) | **4 d 23 h 2 min** (≈476.1 GPU-h on 4×A100) | 5 d 12 h 31 min (Oct 3 11:18 → Oct 8 23:49 EDT) |
+| **Total** | | 17 jobs | **8 d 6 h 40 min** (≈794.7 GPU-h) | 8 d 18 h 11 min |
+
+GPU compute time and wall-clock span differ because of two multi-hour gaps where a resubmitted job
+sat in the SLURM queue before starting (job 58718677 waited ~2h22m; job 58739374 waited ~10h4m);
+GPU compute time is the fairer "cost to train" number, wall-clock is the fairer "how long this
+took on the calendar" number.
+
+### Our own latent model (DRN + VAE + diffusion), same 4×A100 hardware — clean path only
+
+Source: `sbatch_logs/train_output.*` + `sacct` accounting for `scripts/run_training.sh` jobs
+(`sbatch scripts/run_training.sh --stage {drn,vae,diffusion}`, same 12h wall-time cap and
+auto-resubmit pattern as the NVIDIA runs above). The real history includes a superseded first
+diffusion attempt (~Mar 29–30, trained against an early VAE before a spectral loss was added)
+and some short crashed/retried jobs; the table below is the **one clean path to the final
+checkpoints** (`drn_best.pt` → `vae_best.pt` → `diffusion_best.pt`), excluding that abandoned
+attempt and the crashes, for a fair stage-for-stage comparison against NVIDIA's single clean run.
+
+| Stage | Final checkpoint | SLURM jobs | GPU compute time |
+|---|---|---|---|
+| DRN | `drn_best.pt` (Mar 27) | 17 | 3 d 9 h 29 min (≈326 GPU-h on 4×A100) |
+| VAE | `vae_best.pt` (Apr 23, post spectral-loss) | 4 | 1 d 13 h 17 min (≈149 GPU-h) |
+| Diffusion | `diffusion_best.pt` (Apr 29) | 16 | 6 d 1 h 37 min (≈582 GPU-h) |
+| **Total** | | 37 jobs | **11 d 0 h 23 min** (≈1,058 GPU-h) |
+
+**This is not fewer GPU-hours than NVIDIA's ≈795 GPU-h** — it's more, even on the clean path.
+The reason isn't that latent-space training is slower per step; it's that our pipeline has **three**
+stages trained end-to-end (DRN, then VAE, then diffusion) against NVIDIA's **two** (regression,
+then diffusion) — the extra VAE stage and a second full pass over the data for DRN add real GPU-hours
+that have no NVIDIA-side equivalent. Our diffusion stage had also only reached epoch 106/300 at
+the last logged step (not run to its own full schedule), so this isn't even "ours at full
+convergence" — the true cost to match NVIDIA's convergence standard would be higher still.
+**The "latent is cheaper" argument in this repo is about per-sample/per-step inference cost in
+the compressed 64×64 latent space, not total training GPU-hours** — see
+`event_benchmark_output/README.md` §10 "Cost" (inference-time, found **not** faster than the
+small CorrDiff-style pixel baseline there either) and `results/benchmark/` for where that claim
+actually was and wasn't supported.
+
+## Accuracy result (6 matched held-out 2018–2020 dates; same dates as `scripts/run_generic_baselines.py`)
+
+Not a pixel-identical comparison: physicsnemo's `generate.py` picks a random CONUS crop per
+sample with no recorded lat/lon, so this is a statistical, same-dates comparison, not an
+exact-patch one.
+
+| Variable | ERA5 interp. RMSE | Ours | NVIDIA CorrDiff (official code, trained to completion) |
+|---|---|---|---|
+| T2 | ~1.7–2.0 K | 0.92 K | 1.20 K |
+| Precip | ~0.7–3.0 mm | 3.12 mm | 0.49 mm |
+
+Figures: [`ours_vs_nvidia_corrdiff_rmse.png`](ours_vs_nvidia_corrdiff_rmse.png),
+[`nvidia_corrdiff_power_spectrum.png`](nvidia_corrdiff_power_spectrum.png).
+Generated by `scripts/run_corrdiff_generate.sh` → `scripts/analyze_corrdiff_benchmark.py`.
+
+## Side-by-side output maps, same 6 dates — [`side_by_side/`](side_by_side)
+
+The RMSE table above is a summary number; [`side_by_side/sidebyside_<date>.png`](side_by_side) (one PNG per date) shows
+each pipeline's *actual output maps* instead — left 3 columns = NVIDIA CorrDiff's own ERA5 input / truth / prediction
+(ensemble member 0, the full pipeline, not an averaged member) read from `corrdiff_output.nc`; right 3 columns = ours,
+run fresh on the same calendar date at a fixed patch, FULL PIPELINE single member (DRN+diffusion, not the ensemble
+mean) (ERA5 interp / truth / full-pipeline prediction), for T2 and PREC_ACC_NC. Generated by
+`scripts/run_corrdiff_vs_ours_sidebyside.sh` → `scripts/corrdiff_vs_ours_sidebyside.py` (GPU, runs our model fresh on
+each date; reuses NVIDIA's already-generated `corrdiff_output.nc`).
+
+**Same caveat as the RMSE table, worth repeating because it's easy to misread the images**: `corrdiff_output.nc`'s
+`lat`/`lon` are all-NaN — physicsnemo's dataset adapter picks a random CONUS crop per sample with no recorded
+coordinates — so these are two pipelines' real output on the *same date*, at each pipeline's own *different* (and for
+NVIDIA's side, unknown) crop location, not a pixel-identical comparison. What they're good for: seeing each pipeline's
+actual visual character (smoothness, sharpness, artifacts) side by side rather than only a summary RMSE number. On the
+one date spot-checked closely (2018-08-09), NVIDIA's T2 prediction tracked its own truth very closely (sharp, matching
+fine structure); ours was visibly smoother but recovered the same large-scale pattern. The precip panels differ mostly
+because the two crops happened to have very different actual precipitation that day, not because of a pipeline
+difference — another reminder these aren't the same location.
