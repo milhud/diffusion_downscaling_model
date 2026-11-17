@@ -72,12 +72,51 @@ def build_year(year, months):
     return result
 
 
+def load_lsm():
+    ds = xr.open_zarr(ZARR, chunks=None)
+    a = ds["land_sea_mask"].sel(time="1980-01-01T00", latitude=LAT, longitude=LON).load().values
+    assert a.shape == (111, 235) and not np.isnan(a).any()
+    return a.astype(np.float32)
+
+
+def add_lsm(path, lsm):
+    """Append a static land-sea mask in the same (time, valid_time, lat, lon) month-slot layout, via a temp copy."""
+    import shutil
+    import netCDF4
+
+    tmp = path.with_name(f".{path.name}.lsm.tmp")
+    shutil.copy2(path, tmp)
+    with netCDF4.Dataset(tmp, "a") as nc:
+        if "lsm" in nc.variables:
+            tmp.unlink()
+            return False
+        v = nc.createVariable("lsm", "f4", ("time", "valid_time", "latitude", "longitude"), zlib=True,
+                              complevel=5, chunksizes=(1, 46, 14, 30), fill_value=np.float32("nan"))
+        v.units, v.long_name = "(0 - 1)", "Land-sea mask"
+        days = np.arange(f"{path.stem[-4:]}-01-01", f"{int(path.stem[-4:]) + 1}-01-01", dtype="datetime64[D]")
+        months = days.astype("datetime64[M]").astype(int) % 12
+        for m in range(12):
+            idx = np.where(months == m)[0]
+            block = np.full((len(days), 111, 235), np.nan, np.float32)
+            block[idx] = lsm
+            v[m, :, :, :] = block
+    tmp.rename(path)
+    return True
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("year", type=int)
-    p.add_argument("--out", default="/discover/nobackup/hpmille1/era5_data")
+    p.add_argument("year", type=int, nargs="?")
+    p.add_argument("--out", default="/discover/nobackup/hpmille1/data/era5_data")
     p.add_argument("--months", type=int, nargs="*", default=list(range(1, 13)))
+    p.add_argument("--add-lsm", action="store_true", help="append lsm to all existing era5_YYYY.nc in --out")
     args = p.parse_args()
+
+    if args.add_lsm:
+        lsm = load_lsm()
+        for f in sorted(Path(args.out).glob("era5_[0-9][0-9][0-9][0-9].nc")):
+            print(f.name, "added" if add_lsm(f, lsm) else "already has lsm", flush=True)
+        return
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -92,6 +131,8 @@ def main():
     ds.to_netcdf(tmp, encoding=enc)
     dest = final if len(args.months) == 12 else out / f"era5_{args.year}_partial.nc"
     tmp.rename(dest)
+    if dest == final:
+        add_lsm(final, load_lsm())
     print("wrote", dest)
 
 

@@ -5,7 +5,7 @@ set -Eeuo pipefail
 # Override HF_REPO, HF_REPO_TYPE, or FINAL_DATA_DIR when needed.
 HF_REPO="${HF_REPO:-mudhil/diffusion-downscaling-model}"
 HF_REPO_TYPE="${HF_REPO_TYPE:-model}"
-FINAL_DATA_DIR="${FINAL_DATA_DIR:-/gpfsm/dnb33/hpmille1/final_data}"
+FINAL_DATA_DIR="${FINAL_DATA_DIR:-/discover/nobackup/hpmille1/data/conus404_data}"
 UPLOAD_DIR="${UPLOAD_DIR:-$PWD/.hf_final_data_upload}"
 NUM_WORKERS="${NUM_WORKERS:-2}"
 

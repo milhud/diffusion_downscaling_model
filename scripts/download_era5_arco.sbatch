@@ -8,8 +8,8 @@
 #SBATCH --mem=16G
 #SBATCH --time=02:00:00
 #SBATCH --array=1980-2020%6
-#SBATCH -o /discover/nobackup/hpmille1/era5_data/logs/era5_%a.out
-#SBATCH -e /discover/nobackup/hpmille1/era5_data/logs/era5_%a.err
+#SBATCH -o /discover/nobackup/hpmille1/data/era5_data/logs/era5_%a.out
+#SBATCH -e /discover/nobackup/hpmille1/data/era5_data/logs/era5_%a.err
 
 module load python/GEOSpyD/24.3.0-0/3.12
 /discover/nobackup/hpmille1/download_pipeline/venv/bin/python \

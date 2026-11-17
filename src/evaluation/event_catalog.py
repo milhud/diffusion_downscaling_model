@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 CACHE_DIR = "/discover/nobackup/sduan/.data"
-NC_2018 = "/discover/nobackup/hpmille1/final_data/conus404_yearly_2018.nc"
+NC_2018 = "/discover/nobackup/hpmille1/data/conus404_data/conus404_yearly_2018.nc"
 WIN = 512
 
 EVENTS = [
