@@ -25,6 +25,9 @@ dataset:
     invariant_variables: [terrain, orog_var, lat, lon, lai, lsm]
     crop_size: 448
     min_land_frac: 0.8
+    # Fixed per-date crops shared with our pipeline (scripts/select_shared_patches.py).
+    # Remove this line to fall back to CorrDiff's unseeded random crop.
+    patch_manifest: /gpfsm/dnb33/hpmille1/diffusion_downscaling_model/results/corrdiff_comparison/shared_patches.json
 
 generation:
     num_ensembles: 4

@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "seed": 0,
+    "crop_size": 448,
+    "ours_size": 256,
+    "ours_offset": 96,
+    "origin_convention": "(y0, x0) top-left in the full CONUS404 cache grid"
+  },
+  "2020-day232": {
+    "year": 2020,
+    "day_idx": 232,
+    "y0": 112,
+    "x0": 448,
+    "ours_y0": 208,
+    "ours_x0": 544
+  },
+  "2019-day237": {
+    "year": 2019,
+    "day_idx": 237,
+    "y0": 448,
+    "x0": 224,
+    "ours_y0": 544,
+    "ours_x0": 320
+  },
+  "2018-day221": {
+    "year": 2018,
+    "day_idx": 221,
+    "y0": 112,
+    "x0": 448,
+    "ours_y0": 208,
+    "ours_x0": 544
+  },
+  "2019-day230": {
+    "year": 2019,
+    "day_idx": 230,
+    "y0": 336,
+    "x0": 336,
+    "ours_y0": 432,
+    "ours_x0": 432
+  },
+  "2018-day341": {
+    "year": 2018,
+    "day_idx": 341,
+    "y0": 224,
+    "x0": 224,
+    "ours_y0": 320,
+    "ours_x0": 320
+  },
+  "2019-day244": {
+    "year": 2019,
+    "day_idx": 244,
+    "y0": 224,
+    "x0": 560,
+    "ours_y0": 320,
+    "ours_x0": 656
+  }
+}

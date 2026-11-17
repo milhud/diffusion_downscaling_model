@@ -3,11 +3,10 @@ trained to completion) vs our own full pipeline (DRN + diffusion, single full-pi
 member -- not the ensemble mean), run on the SAME 6 calendar dates CorrDiff's own
 generate.py used.
 
-IMPORTANT CAVEAT: corrdiff_output.nc's lat/lon are all-NaN (physicsnemo's dataset
-adapter picks a random CONUS crop per sample with no recorded coordinates), so this is
-NOT a pixel-identical comparison -- it is both pipelines' real output on the same date,
-at each pipeline's own (different, unknown-vs-known) crop location. Same caveat as
-results/corrdiff_comparison/ours_vs_nvidia_corrdiff_rmse.png.
+PIXEL-ALIGNED: both pipelines use the per-date crops in shared_patches.json
+(scripts/select_shared_patches.py). CorrDiff ran on the full 448x448 crop (its dataset reads
+the manifest); ours runs on the central 256x256 of that same crop, and CorrDiff's output is
+center-cropped to those same pixels. A truth-vs-truth check per date verifies alignment.
 
 Produces one PNG per date: left column = CorrDiff (ERA5 input / truth / its own
 prediction, ensemble member 0), right column = ours (ERA5 interp / truth / DRN /
@@ -16,6 +15,7 @@ full-pipeline ensemble member 0), for T2 and PREC_ACC_NC.
 Usage: python scripts/corrdiff_vs_ours_sidebyside.py
 """
 import datetime as dt
+import json
 from pathlib import Path
 
 import netCDF4 as nc
@@ -25,13 +25,13 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from config import ERA5_VARS, CONUS404_VARS, PATCH_SIZE, TRAIN
+from config import ERA5_VARS, CONUS404_VARS, PATCH_SIZE
 from src.inference.pipeline import run_pipeline
 from src.evaluation._eval_setup import load_models, load_land_mask_from_cache
 from src.preprocessing.normalization import NormalizationStats
-from src.preprocessing.land_mask import get_valid_patch_origins
 
 CACHE = "/discover/nobackup/sduan/.data"
+MANIFEST = "results/corrdiff_comparison/shared_patches.json"
 NC_PATH = "external/corrdiff/physicsnemo_src/examples/weather/corrdiff/corrdiff_output.nc"
 OUT_DIR = Path("results/corrdiff_comparison/side_by_side")
 PS = PATCH_SIZE
@@ -51,7 +51,7 @@ def to_phys(x, mean, std, is_era5, var_list):
 
 def parse_tag(tag):
     year, day = tag.split("-day")
-    year = int(year); day_idx = int(day) - 1  # "day232" = day-of-year 232 (1-indexed)
+    year = int(year); day_idx = int(day)  # 0-based cache index, as Era5Conus404Dataset.time() emits
     date = dt.date(year, 1, 1) + dt.timedelta(days=day_idx)
     return year, day_idx, date
 
@@ -69,15 +69,15 @@ def main():
     cm, cs = stats.conus_mean.numpy(), stats.conus_std.numpy()
     static = np.load(f"{CACHE}/static_fields.npy")
     land = load_land_mask_from_cache(CACHE)
-    origins = get_valid_patch_origins(land, PS, TRAIN["min_land_frac"])
     models = load_models(device=device)
     drn, vae, diff, ema, sched = models
 
-    # Fixed patch (same crop every date, picked once) so the 6 figures are directly
-    # comparable to each other on our side; CorrDiff's crop is unknown and differs per date.
-    rng = np.random.default_rng(0)
-    y0, x0 = origins[int(rng.integers(0, len(origins)))]
-    print(f"Our fixed patch origin: ({y0},{x0})")
+    manifest = json.load(open(MANIFEST))
+    off = manifest["_meta"]["ours_offset"]
+    assert manifest["_meta"]["ours_size"] == PS
+
+    def cc(a):  # center-crop CorrDiff's 448 window to our 256 patch
+        return np.asarray(a)[..., off:off + PS, off:off + PS]
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     BLUE, ORANGE, AQUA, GREY = "#2a78d6", "#eb6834", "#1baf7a", "#86847c"
@@ -86,6 +86,7 @@ def main():
     for i, tag in enumerate(tags):
         year, day_idx, date = parse_tag(tag)
         print(f"[{i}] {tag} -> {date}")
+        y0, x0 = manifest[tag]["ours_y0"], manifest[tag]["ours_x0"]
 
         # --- Ours: run the full pipeline (single member, not ensemble mean) ---
         era5_all = np.load(f"{CACHE}/era5_{year}.npy", mmap_mode="r")
@@ -108,15 +109,23 @@ def main():
         truth_phys_ours = to_phys(c_n.astype(np.float32), cm, cs, False, CONUS404_VARS)
         era5_phys_ours = to_phys(e_n.astype(np.float32), em, es, True, ERA5_VARS)
 
+        # --- Alignment check: CorrDiff's truth must equal our truth on the shared pixels ---
+        for v in ("T2", "U10"):
+            ours_t = truth_phys_ours[CONUS404_VARS.index(v)]
+            d = np.abs(cc(f["truth"][v][i]) - ours_t).max()
+            print(f"  truth alignment max|diff| {v}: {d:.3g}")
+            assert d < 1e-2 * max(1.0, np.abs(ours_t).max()), \
+                f"CorrDiff and our truth differ for {tag} -- crops are not aligned"
+
         # --- CorrDiff: already-generated output for this date ---
         fig, axes = plt.subplots(len(PLOT_VARS), 6, figsize=(20, 3.6 * len(PLOT_VARS) + 0.8), dpi=130)
         for row, var in enumerate(PLOT_VARS):
             ci = CONUS404_VARS.index(var)
             ei = ERA5_VARS.index({"T2": "t2m", "PREC_ACC_NC": "tp"}[var])
 
-            cd_truth = np.asarray(f["truth"][var][i])
-            cd_era5 = np.asarray(f["input"][{"T2": "t2m", "PREC_ACC_NC": "tp"}[var]][i])
-            cd_pred = np.asarray(f["prediction"][var][0, i])   # member 0, "full pipeline" not mean
+            cd_truth = cc(f["truth"][var][i])
+            cd_era5 = cc(f["input"][{"T2": "t2m", "PREC_ACC_NC": "tp"}[var]][i])
+            cd_pred = cc(f["prediction"][var][0, i])   # member 0, "full pipeline" not mean
 
             our_truth = truth_phys_ours[ci]
             our_era5 = era5_phys_ours[ei]
@@ -138,7 +147,7 @@ def main():
             axes[row, 0].set_ylabel(var, fontsize=11)
 
         fig.suptitle(f"CorrDiff (left 3) vs. Ours (right 3) -- {date.isoformat()}\n"
-                     f"Different, unrecorded crop locations for CorrDiff's panels -- same-date, not same-pixel comparison",
+                     f"Same pixels: shared crop origin ({y0},{x0}), {PS}x{PS} patch",
                      fontsize=12, fontweight="bold")
         fig.tight_layout()
         fig.savefig(OUT_DIR / f"sidebyside_{date.isoformat()}.png", bbox_inches="tight")
@@ -152,9 +161,9 @@ def main():
                         "PSFC": "sp", "PREC_ACC_NC": "tp"}[var]
             ei = ERA5_VARS.index(era5_key)
 
-            cd_truth = np.asarray(f["truth"][var][i])
-            cd_era5 = np.asarray(f["input"][era5_key][i])
-            cd_pred = np.asarray(f["prediction"][var][0, i])
+            cd_truth = cc(f["truth"][var][i])
+            cd_era5 = cc(f["input"][era5_key][i])
+            cd_pred = cc(f["prediction"][var][0, i])
             our_truth = truth_phys_ours[ci]
             our_era5 = era5_phys_ours[ei]
             our_pipe = ens_phys[ci]

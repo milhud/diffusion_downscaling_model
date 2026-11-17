@@ -83,8 +83,17 @@ class Era5Conus404Dataset(DownscalingDataset):
         invariant_variables: Optional[List[str]] = None,
         crop_size: int = 768,
         min_land_frac: float = 0.8,
+        patch_manifest: Optional[str] = None,
     ):
         self.cache_dir = Path(cache_dir)
+        self._fixed_origins = None
+        if patch_manifest:
+            import json
+
+            with open(patch_manifest) as f:
+                m = json.load(f)
+            m.pop("_meta", None)
+            self._fixed_origins = {t: (v["y0"], v["x0"]) for t, v in m.items()}
         self.years = list(years)
         self.input_variables = list(input_variables)
         self.output_variables = list(output_variables)
@@ -151,7 +160,11 @@ class Era5Conus404Dataset(DownscalingDataset):
         era5_day = self._era5_maps[year][day_idx]  # (n_in, H, W)
         conus_day = self._conus_maps[year][day_idx]  # (n_out, H, W)
 
-        y0, x0 = self._origin(rng)
+        if self._fixed_origins is not None:
+            # Tag must match time() so CorrDiff and our pipeline crop identical pixels.
+            y0, x0 = self._fixed_origins[f"{year}-day{day_idx:03d}"]
+        else:
+            y0, x0 = self._origin(rng)
         cs = self.crop_size
         img_lr = np.concatenate(
             [
