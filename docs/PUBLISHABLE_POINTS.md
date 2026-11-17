@@ -280,15 +280,18 @@ sbatch scripts/run_evaluation.sh
 Checkpoints are mirrored across three HuggingFace repos (verified by sha256
 against the local `checkpoints/` directory as of 2026-09-27):
 
-- **[mudhil/era5-conus404-diffusion-downscaling](https://huggingface.co/mudhil/era5-conus404-diffusion-downscaling)** (private) —
+- **[mudhil/era5-conus404-diffusion-downscaling](https://huggingface.co/mudhil/era5-conus404-diffusion-downscaling)** (public, corrected 2026-11-17; this doc previously said "private", verified wrong via the HF API) —
   **the current, most up-to-date multi-variable checkpoints.** `diffusion_best.pt`,
   `diffusion_latest.pt`, `drn_best.pt`, `vae_best.pt` are byte-identical to
-  what's on disk in `checkpoints/` right now.
+  what's on disk in `checkpoints/` right now. As of 2026-11-17 this repo also
+  hosts the 41 raw `era5_{year}.nc` input files (`era5_data/`, ~6 GB, rebuilt
+  from the public ARCO-ERA5 mirror) as an interim home pending a dedicated
+  dataset repo.
 - **[mudhil/diffusion-downscaling-checkpoints](https://huggingface.co/mudhil/diffusion-downscaling-checkpoints)** (public) —
   `drn_best.pt`, `drn_latest.pt`, `vae_best.pt`, `vae_latest.pt`, and the
   `_prespectral`/`_oldvae` variants are byte-identical to local. Its
   `diffusion_best.pt`/`diffusion_latest.pt` are an **older** diffusion
-  checkpoint (different hash from current local/private-repo weights).
+  checkpoint (different hash from current local weights).
 - **[mudhil/diffusion-downscaling-model](https://huggingface.co/mudhil/diffusion-downscaling-model)** (public, 2.6TB) —
   bundles checkpoints *and* the full 41-year raw CONUS404 dataset. Its
   `checkpoints_final/drn_best.pt` matches local exactly; `checkpoints_final/vae_best.pt`
