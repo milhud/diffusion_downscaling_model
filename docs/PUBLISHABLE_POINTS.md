@@ -283,10 +283,14 @@ against the local `checkpoints/` directory as of 2026-09-27):
 - **[mudhil/era5-conus404-diffusion-downscaling](https://huggingface.co/mudhil/era5-conus404-diffusion-downscaling)** (public, corrected 2026-11-17; this doc previously said "private", verified wrong via the HF API) —
   **the current, most up-to-date multi-variable checkpoints.** `diffusion_best.pt`,
   `diffusion_latest.pt`, `drn_best.pt`, `vae_best.pt` are byte-identical to
-  what's on disk in `checkpoints/` right now. As of 2026-11-17 this repo also
-  hosts the 41 raw `era5_{year}.nc` input files (`era5_data/`, ~6 GB, rebuilt
-  from the public ARCO-ERA5 mirror) as an interim home pending a dedicated
-  dataset repo.
+  what's on disk in `checkpoints/` right now. Checkpoints only as of
+  2026-11-17; the ERA5/CONUS404 data briefly lived here too but was moved out
+  to the new dataset repo below the same day.
+- **[mudhil/era5-conus404-data](https://huggingface.co/datasets/mudhil/era5-conus404-data)** (public, dataset repo, created 2026-11-17) —
+  `era5_data/era5_{year}.nc` (41 files, ~6 GB, rebuilt from the public
+  ARCO-ERA5 mirror) and `conus404_data/conus404_yearly_{year}.nc` (41 files,
+  ~2.4 TB). Linked with the checkpoints repo above in
+  [this collection](https://huggingface.co/collections/mudhil/era5-to-conus404-downscaling-6afcdf7b7ce3b49b547f1077).
 - **[mudhil/diffusion-downscaling-checkpoints](https://huggingface.co/mudhil/diffusion-downscaling-checkpoints)** (public) —
   `drn_best.pt`, `drn_latest.pt`, `vae_best.pt`, `vae_latest.pt`, and the
   `_prespectral`/`_oldvae` variants are byte-identical to local. Its
